@@ -1,0 +1,97 @@
+package com.realestate.emi.service;
+
+import com.realestate.emi.dto.request.CustomerRequest;
+import com.realestate.emi.dto.response.CustomerResponse;
+import com.realestate.emi.entity.Customer;
+import com.realestate.emi.exception.ResourceNotFoundException;
+import com.realestate.emi.exception.ServiceException;
+import com.realestate.emi.mapper.CustomerMapper;
+import com.realestate.emi.repository.CustomerRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class CustomerService {
+
+    private final CustomerRepository customerRepository;
+    private final CustomerMapper customerMapper;
+
+    @Transactional(readOnly = true)
+    public List<CustomerResponse> findAll() {
+        log.debug("Fetching all customers");
+        return customerRepository.findAll().stream()
+                .map(customerMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public CustomerResponse findById(Long id) {
+        log.debug("Fetching customer with id: {}", id);
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", id));
+        return customerMapper.toResponse(customer);
+    }
+
+    @Transactional
+    public CustomerResponse create(CustomerRequest request) {
+        log.debug("Creating customer with phone: {}", request.getPhoneNumber());
+
+        if (customerRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+            throw new ServiceException("Customer with phone number '" + request.getPhoneNumber() + "' already exists",
+                    "DUPLICATE_PHONE");
+        }
+
+        if (StringUtils.hasText(request.getAadharNumber())
+                && customerRepository.existsByAadharNumber(request.getAadharNumber())) {
+            throw new ServiceException("Customer with Aadhar number already exists", "DUPLICATE_AADHAR");
+        }
+
+        if (StringUtils.hasText(request.getPanNumber())
+                && customerRepository.existsByPanNumber(request.getPanNumber())) {
+            throw new ServiceException("Customer with PAN number already exists", "DUPLICATE_PAN");
+        }
+
+        Customer customer = customerMapper.toEntity(request);
+        Customer saved = customerRepository.save(customer);
+        log.info("Created customer with id: {}", saved.getId());
+        return customerMapper.toResponse(saved);
+    }
+
+    @Transactional
+    public CustomerResponse update(Long id, CustomerRequest request) {
+        log.debug("Updating customer with id: {}", id);
+        Customer existing = customerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", id));
+
+        if (!existing.getPhoneNumber().equals(request.getPhoneNumber())
+                && customerRepository.existsByPhoneNumberAndIdNot(request.getPhoneNumber(), id)) {
+            throw new ServiceException("Customer with phone number '" + request.getPhoneNumber() + "' already exists",
+                    "DUPLICATE_PHONE");
+        }
+
+        if (StringUtils.hasText(request.getAadharNumber())
+                && !request.getAadharNumber().equals(existing.getAadharNumber())
+                && customerRepository.existsByAadharNumberAndIdNot(request.getAadharNumber(), id)) {
+            throw new ServiceException("Customer with Aadhar number already exists", "DUPLICATE_AADHAR");
+        }
+
+        if (StringUtils.hasText(request.getPanNumber())
+                && !request.getPanNumber().equals(existing.getPanNumber())
+                && customerRepository.existsByPanNumberAndIdNot(request.getPanNumber(), id)) {
+            throw new ServiceException("Customer with PAN number already exists", "DUPLICATE_PAN");
+        }
+
+        customerMapper.updateEntityFromRequest(request, existing);
+        Customer saved = customerRepository.save(existing);
+        log.info("Updated customer with id: {}", saved.getId());
+        return customerMapper.toResponse(saved);
+    }
+}

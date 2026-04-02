@@ -1,0 +1,77 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.5'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.realestate'
+version = '1.0.0'
+description = 'Real Estate EMI Payment Tracking System'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+ext {
+    mapstructVersion         = '1.5.5.Final'
+    lombokVersion            = '1.18.34'
+    lombokMapstructBinding   = '0.2.0'
+    jjwtVersion              = '0.11.5'
+    springdocVersion         = '2.5.0'
+    twilioVersion            = '10.1.0'
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // PostgreSQL
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // JWT
+    implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+    runtimeOnly   "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+    runtimeOnly   "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+
+    // Lombok
+    compileOnly   "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+
+    // MapStruct
+    implementation "org.mapstruct:mapstruct:${mapstructVersion}"
+    annotationProcessor "org.projectlombok:lombok-mapstruct-binding:${lombokMapstructBinding}"
+    annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
+
+    // SpringDoc OpenAPI / Swagger UI
+    implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+    // Twilio SMS
+    implementation "com.twilio.sdk:twilio:${twilioVersion}"
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+}
+
+compileJava {
+    options.compilerArgs += ['-Amapstruct.defaultComponentModel=spring']
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

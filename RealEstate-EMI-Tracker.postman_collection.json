@@ -1,0 +1,372 @@
+{
+  "info": {
+    "name": "RealEstate EMI Tracker",
+    "description": "Complete API collection for the Real Estate EMI Payment Tracking System.\n\n**Setup:**\n1. Set the `baseUrl` variable to `http://localhost:8090`\n2. Run **Login** first — the `token` variable is auto-set\n3. All protected requests use `{{token}}` automatically",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl",  "value": "http://localhost:8090", "type": "string" },
+    { "key": "token",    "value": "", "type": "string" },
+    { "key": "dealId",   "value": "1", "type": "string" },
+    { "key": "customerId", "value": "1", "type": "string" },
+    { "key": "propertyTypeId", "value": "1", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "🔐 Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('token', json.data.token);",
+                  "    console.log('Token saved:', json.data.token.substring(0, 30) + '...');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Register – Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/admin/send-otp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"newadmin\",\n  \"password\": \"Admin@1234\",\n  \"fullName\": \"New Admin\",\n  \"mobile\": \"+919876543210\"\n}"
+            },
+            "description": "Sends a 6-digit OTP to the given mobile number. OTP expires in 5 minutes."
+          }
+        },
+        {
+          "name": "Admin Register – Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/admin/verify-otp",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"+919876543210\",\n  \"otp\": \"482910\"\n}"
+            },
+            "description": "Verifies the OTP and creates the admin account."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🏷️ Property Types",
+      "item": [
+        {
+          "name": "Get All Property Types",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/property-types"
+          }
+        },
+        {
+          "name": "Create Property Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/property-types",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Residential Apartment\",\n  \"description\": \"2BHK and 3BHK residential apartments\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Property Type",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/property-types/{{propertyTypeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Residential Apartment (Updated)\",\n  \"description\": \"Updated description\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Property Type",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/property-types/{{propertyTypeId}}"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "👤 Customers",
+      "item": [
+        {
+          "name": "Get All Customers",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/customers"
+          }
+        },
+        {
+          "name": "Get Customer by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/customers/{{customerId}}"
+          }
+        },
+        {
+          "name": "Create Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('customerId', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/customers",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Rahul Sharma\",\n  \"phoneNumber\": \"9876543210\",\n  \"email\": \"rahul.sharma@example.com\",\n  \"address\": \"123, MG Road, Bangalore, Karnataka 560001\",\n  \"aadharNumber\": \"123456789012\",\n  \"panNumber\": \"ABCDE1234F\"\n}"
+            },
+            "description": "Phone: 10-digit Indian mobile (starts 6-9). Aadhar: 12 digits. PAN: ABCDE1234F format."
+          }
+        },
+        {
+          "name": "Update Customer",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/customers/{{customerId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Rahul Sharma (Updated)\",\n  \"phoneNumber\": \"9876543210\",\n  \"email\": \"rahul.updated@example.com\",\n  \"address\": \"456, Brigade Road, Bangalore, Karnataka 560025\",\n  \"aadharNumber\": \"123456789012\",\n  \"panNumber\": \"ABCDE1234F\"\n}"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🏠 Deals",
+      "item": [
+        {
+          "name": "Get All Deals",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/deals"
+          }
+        },
+        {
+          "name": "Get Deal by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/deals/{{dealId}}"
+          }
+        },
+        {
+          "name": "Create Deal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('dealId', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/deals",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": {{customerId}},\n  \"propertyTypeId\": {{propertyTypeId}},\n  \"propertyDescription\": \"3BHK Apartment, 2nd Floor, Tower A, Green Valley\",\n  \"totalAmount\": 5000000,\n  \"initialDeposit\": 1000000,\n  \"emiTenureMonths\": 24,\n  \"interestRatePercent\": 8.5,\n  \"dealDate\": \"2026-04-01\"\n}"
+            },
+            "description": "Creates a deal and auto-generates the full EMI schedule.\nEMI tenure valid values: 3, 6, 12, 18, 24, 36, 48, 60 months."
+          }
+        },
+        {
+          "name": "Update Deal Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/deals/{{dealId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\"\n}"
+            },
+            "description": "Valid statuses: ACTIVE, COMPLETED, DEFAULTED"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "💳 Payments",
+      "item": [
+        {
+          "name": "Get Payments for Deal",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/deals/{{dealId}}/payments"
+          }
+        },
+        {
+          "name": "Record Payment (Cash)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/deals/{{dealId}}/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 166667,\n  \"paymentDate\": \"2026-04-01T10:00:00\",\n  \"paymentMethod\": \"CASH\",\n  \"notes\": \"April EMI - cash payment\"\n}"
+            },
+            "description": "Payment methods: CASH, BANK_TRANSFER, UPI, CHEQUE, INITIAL_DEPOSIT, OTHER"
+          }
+        },
+        {
+          "name": "Record Payment (UPI)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/deals/{{dealId}}/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 166667,\n  \"paymentDate\": \"2026-04-01T10:30:00\",\n  \"paymentMethod\": \"UPI\",\n  \"notes\": \"UPI ref: UPI123456789\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Record Payment (Bank Transfer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/deals/{{dealId}}/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 166667,\n  \"paymentDate\": \"2026-04-01T11:00:00\",\n  \"paymentMethod\": \"BANK_TRANSFER\",\n  \"notes\": \"NEFT ref: NEFT20260401\"\n}"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "📊 Dashboard & Analytics",
+      "item": [
+        {
+          "name": "Summary (Basic)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/dashboard/summary",
+            "description": "Basic KPIs: total deals, collected, outstanding."
+          }
+        },
+        {
+          "name": "Monthly Analytics (Current Month)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/dashboard/monthly-analytics",
+            "description": "Defaults to current month when no params given."
+          }
+        },
+        {
+          "name": "Monthly Analytics (Specific Month)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/dashboard/monthly-analytics?year=2026&month=4",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dashboard", "monthly-analytics"],
+              "query": [
+                { "key": "year",  "value": "2026" },
+                { "key": "month", "value": "4" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "📈 Comprehensive Analytics",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/dashboard/analytics",
+            "description": "Industry-level analytics in one call:\n- Portfolio Overview (collection efficiency, NPA rate, averages)\n- Upcoming EMIs this week (next 7 days)\n- Upcoming EMIs next month (next 30 days)\n- Overdue Aging Analysis (1-30, 31-60, 61-90, 90+ days)\n- Monthly Trend (last 12 months)\n- Deal Distribution (by property type & status)"
+          }
+        }
+      ]
+    }
+
+  ]
+}
