@@ -19,8 +19,11 @@ public class EmiScheduleResponse {
 
     private Long id;
     private LocalDate dueDate;
-    private BigDecimal dueAmount;
+    private BigDecimal baseEmiAmount;
+    private BigDecimal bounceCharges;
+    private BigDecimal totalDueAmount;
     private BigDecimal paidAmount;
     private EmiStatus status;
+    private boolean bounced;
     private BigDecimal remaining;
 }

@@ -6,14 +6,19 @@ import com.realestate.emi.dto.response.ApiResponse;
 import com.realestate.emi.dto.response.DealDetailResponse;
 import com.realestate.emi.dto.response.DealSummaryResponse;
 import com.realestate.emi.service.DealService;
+import com.realestate.emi.service.DownloadService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Slf4j
@@ -24,6 +29,7 @@ import java.util.List;
 public class DealController {
 
     private final DealService dealService;
+    private final DownloadService downloadService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<DealDetailResponse>> createDeal(
@@ -51,5 +57,21 @@ public class DealController {
             @Valid @RequestBody DealStatusRequest request) {
         DealDetailResponse deal = dealService.changeStatus(id, request);
         return ResponseEntity.ok(ApiResponse.success(deal, "Deal status updated successfully"));
+    }
+
+    @GetMapping("/{id}/schedule/download")
+    public ResponseEntity<byte[]> downloadSchedule(@PathVariable Long id) {
+        DownloadService.FileDownload file = downloadService.getEmiScheduleExcel(id);
+        MediaType xlsx = MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentDisposition(
+                ContentDisposition.attachment()
+                        .filename(file.fileName(), StandardCharsets.UTF_8)
+                        .build());
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(xlsx)
+                .body(file.content());
     }
 }

@@ -55,18 +55,15 @@ public class DealService {
     public DealDetailResponse createDeal(DealRequest request) {
         log.debug("Creating deal for customerId: {}", request.getCustomerId());
 
-        // 1. Load customer and propertyType
         Customer customer = customerRepository.findById(request.getCustomerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", request.getCustomerId()));
         PropertyType propertyType = propertyTypeRepository.findById(request.getPropertyTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("PropertyType", request.getPropertyTypeId()));
 
-        // 2. Validate initialDeposit <= totalAmount
         if (request.getInitialDeposit().compareTo(request.getTotalAmount()) > 0) {
             throw new ServiceException("Initial deposit cannot exceed total amount", "INVALID_DEPOSIT");
         }
 
-        // 3. totalPayableAfterDeposit = totalAmount - initialDeposit
         BigDecimal totalPayableAfterDeposit = request.getTotalAmount().subtract(request.getInitialDeposit());
 
         // 4. Calculate EMI
@@ -188,10 +185,12 @@ public class DealService {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                 break;
             }
-            BigDecimal scheduleRemaining = schedule.getDueAmount().subtract(schedule.getPaidAmount());
+            BigDecimal totalDue = schedule.getDueAmount().add(
+                    schedule.getBounceCharges() != null ? schedule.getBounceCharges() : BigDecimal.ZERO);
+            BigDecimal scheduleRemaining = totalDue.subtract(schedule.getPaidAmount());
             if (remaining.compareTo(scheduleRemaining) >= 0) {
-                // Fully pay this schedule
-                schedule.setPaidAmount(schedule.getDueAmount());
+                // Fully pay this schedule (base + bounce charges)
+                schedule.setPaidAmount(totalDue);
                 schedule.setStatus(EmiStatus.PAID);
                 remaining = remaining.subtract(scheduleRemaining);
             } else {

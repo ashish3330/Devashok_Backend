@@ -38,4 +38,12 @@ public class EmiSchedule extends BaseAuditEntity {
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private EmiStatus status = EmiStatus.PENDING;
+
+    @Column(name = "bounced", nullable = false)
+    @Builder.Default
+    private boolean bounced = false;
+
+    @Column(name = "bounce_charges", precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal bounceCharges = BigDecimal.ZERO;
 }

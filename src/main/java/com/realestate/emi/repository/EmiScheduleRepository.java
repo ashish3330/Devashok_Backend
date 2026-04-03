@@ -22,14 +22,14 @@ public interface EmiScheduleRepository extends JpaRepository<EmiSchedule, Long> 
 
     Optional<EmiSchedule> findByIdAndDeal(Long id, Deal deal);
 
-    @Query("SELECT COALESCE(SUM(e.dueAmount - e.paidAmount), 0) FROM EmiSchedule e WHERE e.status IN ('PENDING', 'PARTIAL')")
+    @Query("SELECT COALESCE(SUM(e.dueAmount + COALESCE(e.bounceCharges, 0) - e.paidAmount), 0) FROM EmiSchedule e WHERE e.status IN ('PENDING', 'PARTIAL')")
     BigDecimal sumTotalOutstanding();
 
     // --- Monthly analytics ---
     @Query("SELECT COUNT(e) FROM EmiSchedule e WHERE e.status = :status AND YEAR(e.dueDate) = :year AND MONTH(e.dueDate) = :month")
     long countByStatusAndMonth(@Param("status") EmiStatus status, @Param("year") int year, @Param("month") int month);
 
-    @Query("SELECT COALESCE(SUM(e.dueAmount - e.paidAmount), 0) FROM EmiSchedule e WHERE e.status IN ('PENDING', 'PARTIAL') AND YEAR(e.dueDate) = :year AND MONTH(e.dueDate) = :month")
+    @Query("SELECT COALESCE(SUM(e.dueAmount + COALESCE(e.bounceCharges, 0) - e.paidAmount), 0) FROM EmiSchedule e WHERE e.status IN ('PENDING', 'PARTIAL') AND YEAR(e.dueDate) = :year AND MONTH(e.dueDate) = :month")
     BigDecimal sumOutstandingByMonth(@Param("year") int year, @Param("month") int month);
 
     // --- Upcoming EMIs ---
@@ -71,4 +71,8 @@ public interface EmiScheduleRepository extends JpaRepository<EmiSchedule, Long> 
     // NPA: distinct deals with EMIs overdue > 90 days
     @Query("SELECT COUNT(DISTINCT e.deal.id) FROM EmiSchedule e WHERE e.dueDate < :cutoff AND e.status IN ('PENDING', 'PARTIAL')")
     long countNpaDeals(@Param("cutoff") LocalDate cutoff);
+
+    // Overdue EMIs not yet bounced — used by bounce charge scheduler
+    @Query("SELECT e FROM EmiSchedule e WHERE e.dueDate < :today AND e.status IN ('PENDING', 'PARTIAL') AND e.bounced = false")
+    List<EmiSchedule> findOverdueUnbouncedEmis(@Param("today") LocalDate today);
 }

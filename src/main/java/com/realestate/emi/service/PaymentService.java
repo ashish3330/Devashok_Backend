@@ -107,7 +107,9 @@ public class PaymentService {
             throw new ServiceException("This EMI is already fully paid", "EMI_ALREADY_PAID");
         }
 
-        BigDecimal remainingDue = schedule.getDueAmount().subtract(schedule.getPaidAmount());
+        BigDecimal bounceCharges = schedule.getBounceCharges() != null ? schedule.getBounceCharges() : BigDecimal.ZERO;
+        BigDecimal totalDue = schedule.getDueAmount().add(bounceCharges);
+        BigDecimal remainingDue = totalDue.subtract(schedule.getPaidAmount());
         BigDecimal payAmount = request.getAmount();
 
         if (payAmount.compareTo(remainingDue) > 0) {
@@ -117,7 +119,7 @@ public class PaymentService {
 
         // Update the EMI schedule
         schedule.setPaidAmount(schedule.getPaidAmount().add(payAmount));
-        if (schedule.getPaidAmount().compareTo(schedule.getDueAmount()) >= 0) {
+        if (schedule.getPaidAmount().compareTo(totalDue) >= 0) {
             schedule.setStatus(EmiStatus.PAID);
         } else {
             schedule.setStatus(EmiStatus.PARTIAL);
@@ -145,6 +147,44 @@ public class PaymentService {
         dealService.checkDealCompletion(deal);
 
         return paymentMapper.toResponse(payment);
+    }
+
+    @Transactional
+    public void markEmiBounced(Long dealId, Long scheduleId) {
+        log.debug("Marking EMI schedule {} as bounced for dealId: {}", scheduleId, dealId);
+
+        Deal deal = dealRepository.findByIdWithDetails(dealId)
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", dealId));
+
+        if (deal.getStatus() == DealStatus.COMPLETED) {
+            throw new ServiceException("Deal is already completed", "DEAL_COMPLETED");
+        }
+
+        EmiSchedule schedule = emiScheduleRepository.findByIdAndDeal(scheduleId, deal)
+                .orElseThrow(() -> new ResourceNotFoundException("EmiSchedule", scheduleId));
+
+        if (schedule.getStatus() == EmiStatus.PAID) {
+            throw new ServiceException("Cannot mark a fully paid EMI as bounced", "EMI_ALREADY_PAID");
+        }
+
+        if (schedule.isBounced()) {
+            throw new ServiceException("This EMI is already marked as bounced", "EMI_ALREADY_BOUNCED");
+        }
+
+        // Outstanding = base EMI - already paid
+        BigDecimal outstanding = schedule.getDueAmount().subtract(schedule.getPaidAmount());
+        // Bounce penalty = 10% p.a. on outstanding, prorated by days overdue
+        long daysOverdue = java.time.temporal.ChronoUnit.DAYS.between(schedule.getDueDate(), java.time.LocalDate.now());
+        BigDecimal bounceCharge = outstanding
+                .multiply(new BigDecimal("0.10"))
+                .multiply(java.math.BigDecimal.valueOf(daysOverdue))
+                .divide(java.math.BigDecimal.valueOf(365), 2, java.math.RoundingMode.HALF_UP);
+
+        schedule.setBounced(true);
+        schedule.setBounceCharges(bounceCharge);
+        emiScheduleRepository.save(schedule);
+
+        log.info("EMI schedule {} marked bounced with charge {} for deal {}", scheduleId, bounceCharge, dealId);
     }
 
     @Transactional(readOnly = true)

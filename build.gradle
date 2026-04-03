@@ -21,6 +21,8 @@ ext {
     jjwtVersion              = '0.11.5'
     springdocVersion         = '2.5.0'
     twilioVersion            = '10.1.0'
+    openPdfVersion           = '1.3.30'
+    poiVersion               = '5.2.5'
 }
 
 configurations {
@@ -62,6 +64,12 @@ dependencies {
 
     // Twilio SMS
     implementation "com.twilio.sdk:twilio:${twilioVersion}"
+
+    // PDF generation (OpenPDF)
+    implementation "com.github.librepdf:openpdf:${openPdfVersion}"
+
+    // Excel generation (Apache POI)
+    implementation "org.apache.poi:poi-ooxml:${poiVersion}"
 
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

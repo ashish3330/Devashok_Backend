@@ -3,15 +3,20 @@ package com.realestate.emi.controller;
 import com.realestate.emi.dto.request.PaymentRequest;
 import com.realestate.emi.dto.response.ApiResponse;
 import com.realestate.emi.dto.response.PaymentResponse;
+import com.realestate.emi.service.DownloadService;
 import com.realestate.emi.service.PaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Slf4j
@@ -22,6 +27,7 @@ import java.util.List;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final DownloadService downloadService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<PaymentResponse>> recordPayment(
@@ -47,5 +53,25 @@ public class PaymentController {
             @PathVariable Long dealId) {
         List<PaymentResponse> payments = paymentService.getPaymentsByDeal(dealId);
         return ResponseEntity.ok(ApiResponse.success(payments, "Payments retrieved successfully"));
+    }
+
+    @GetMapping("/{paymentId}/receipt")
+    public ResponseEntity<byte[]> downloadReceipt(
+            @PathVariable Long dealId,
+            @PathVariable Long paymentId) {
+        DownloadService.FileDownload file = downloadService.getEmiReceipt(dealId, paymentId);
+        return ResponseEntity.ok()
+                .headers(downloadHeaders(file.fileName(), MediaType.APPLICATION_PDF))
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(file.content());
+    }
+
+    private HttpHeaders downloadHeaders(String fileName, MediaType mediaType) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentDisposition(
+                ContentDisposition.attachment()
+                        .filename(fileName, StandardCharsets.UTF_8)
+                        .build());
+        return headers;
     }
 }
