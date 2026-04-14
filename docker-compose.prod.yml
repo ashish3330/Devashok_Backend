@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: devashok-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-realestate_emi_db}
+      POSTGRES_USER: ${DB_USER:-devashok}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Ch@ngeM3InPr0d!}
+    ports:
+      - "127.0.0.1:5432:5432"  # Only localhost, not exposed to internet
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-devashok} -d ${DB_NAME:-realestate_emi_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - devashok-net
+
+  # ── Spring Boot Backend ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: devashok-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-realestate_emi_db}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-devashok}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-Ch@ngeM3InPr0d!}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      JWT_SECRET: ${JWT_SECRET:-DevAshokEnclave2026ProductionSecretKeyMustBeAtLeast64CharsLong!!}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      SERVER_PORT: 8090
+      LOGGING_LEVEL_COM_REALESTATE: INFO
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY: WARN
+      LOGGING_LEVEL_ORG_HIBERNATE_SQL: WARN
+      JAVA_OPTS: "-XX:MaxRAMPercentage=75.0"
+    ports:
+      - "127.0.0.1:8090:8090"  # Only localhost, nginx proxies to it
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    networks:
+      - devashok-net
+
+  # ── React Frontend (Nginx) ─────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../devashok-admin
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ""  # Empty = same origin, nginx proxies /api/ to backend
+    container_name: devashok-frontend
+    restart: always
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"  # Exposed to internet — access via http://YOUR_VPS_IP
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - devashok-net
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  devashok-net:
+    driver: bridge
