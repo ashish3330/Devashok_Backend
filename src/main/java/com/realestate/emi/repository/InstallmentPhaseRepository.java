@@ -27,4 +27,7 @@ public interface InstallmentPhaseRepository extends JpaRepository<InstallmentPha
 
     @Query("SELECT ip FROM InstallmentPhase ip WHERE ip.status IN ('DUE','PARTIAL') AND ip.dueDeadline < :today")
     List<InstallmentPhase> findOverduePhases(@Param("today") LocalDate today);
+
+    @Query("SELECT ip FROM InstallmentPhase ip JOIN FETCH ip.deal d JOIN FETCH d.customer WHERE ip.status IN ('DUE','OVERDUE','PARTIAL') AND ip.dueDeadline IS NOT NULL AND ip.dueDeadline <= :maxDate AND d.organization.id = :orgId ORDER BY ip.dueDeadline ASC")
+    List<InstallmentPhase> findUpcomingDuePhasesByOrg(@Param("maxDate") LocalDate maxDate, @Param("orgId") Long orgId);
 }

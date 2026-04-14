@@ -5,15 +5,15 @@ import com.realestate.emi.dto.response.ComprehensiveAnalyticsResponse;
 import com.realestate.emi.dto.response.DashboardResponse;
 import com.realestate.emi.dto.response.ExpenseDashboardResponse;
 import com.realestate.emi.dto.response.MonthlyAnalyticsResponse;
+import com.realestate.emi.dto.response.NotificationResponse;
 import com.realestate.emi.service.DashboardService;
+import com.realestate.emi.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
 
 import java.time.YearMonth;
 
@@ -25,6 +25,7 @@ import java.time.YearMonth;
 public class DashboardController {
 
     private final DashboardService dashboardService;
+    private final NotificationService notificationService;
 
     @GetMapping("/summary")
     public ResponseEntity<ApiResponse<DashboardResponse>> getSummary() {
@@ -51,5 +52,23 @@ public class DashboardController {
     public ResponseEntity<ApiResponse<ExpenseDashboardResponse>> getExpenseDashboard() {
         ExpenseDashboardResponse response = dashboardService.getExpenseDashboard();
         return ResponseEntity.ok(ApiResponse.success(response, "Expense dashboard retrieved successfully"));
+    }
+
+    @GetMapping("/notifications")
+    public ResponseEntity<ApiResponse<NotificationResponse>> getNotifications() {
+        NotificationResponse response = notificationService.getNotifications();
+        return ResponseEntity.ok(ApiResponse.success(response, "Notifications retrieved"));
+    }
+
+    @PutMapping("/notifications/{id}/read")
+    public ResponseEntity<ApiResponse<Void>> markNotificationRead(@PathVariable Long id) {
+        notificationService.markAsRead(id);
+        return ResponseEntity.ok(ApiResponse.success(null, "Notification marked as read"));
+    }
+
+    @PutMapping("/notifications/read-all")
+    public ResponseEntity<ApiResponse<Void>> markAllNotificationsRead() {
+        notificationService.markAllAsRead();
+        return ResponseEntity.ok(ApiResponse.success(null, "All notifications marked as read"));
     }
 }
