@@ -33,4 +33,8 @@ public class Customer extends BaseAuditEntity {
 
     @Column(name = "pan_number", unique = true, length = 10)
     private String panNumber;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id")
+    private Organization organization;
 }

@@ -15,6 +15,7 @@ import com.realestate.emi.repository.DealRepository;
 import com.realestate.emi.repository.EmiScheduleRepository;
 import com.realestate.emi.repository.PaymentRepository;
 import com.realestate.emi.security.CustomPrincipal;
+import com.realestate.emi.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -35,6 +36,7 @@ public class PaymentService {
     private final EmiScheduleRepository emiScheduleRepository;
     private final DealService dealService;
     private final PaymentMapper paymentMapper;
+    private final TenantContext tenantContext;
 
     @Transactional
     public PaymentResponse recordPayment(Long dealId, PaymentRequest request) {
@@ -43,6 +45,10 @@ public class PaymentService {
         // 1. Load deal
         Deal deal = dealRepository.findByIdWithDetails(dealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", dealId));
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        if (deal.getOrganization() != null && !deal.getOrganization().getId().equals(orgId)) {
+            throw new ResourceNotFoundException("Deal", dealId);
+        }
 
         // 2. Check if deal is already completed
         if (deal.getStatus() == DealStatus.COMPLETED) {
@@ -90,6 +96,10 @@ public class PaymentService {
 
         Deal deal = dealRepository.findByIdWithDetails(dealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", dealId));
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        if (deal.getOrganization() != null && !deal.getOrganization().getId().equals(orgId)) {
+            throw new ResourceNotFoundException("Deal", dealId);
+        }
 
         if (deal.getStatus() == DealStatus.COMPLETED) {
             throw new ServiceException("Deal is already completed", "DEAL_COMPLETED");
@@ -155,6 +165,10 @@ public class PaymentService {
 
         Deal deal = dealRepository.findByIdWithDetails(dealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", dealId));
+        Long bouncedOrgId = tenantContext.getCurrentOrganizationId();
+        if (deal.getOrganization() != null && !deal.getOrganization().getId().equals(bouncedOrgId)) {
+            throw new ResourceNotFoundException("Deal", dealId);
+        }
 
         if (deal.getStatus() == DealStatus.COMPLETED) {
             throw new ServiceException("Deal is already completed", "DEAL_COMPLETED");
@@ -192,6 +206,10 @@ public class PaymentService {
         log.debug("Fetching payments for dealId: {}", dealId);
         Deal deal = dealRepository.findById(dealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", dealId));
+        Long paymentOrgId = tenantContext.getCurrentOrganizationId();
+        if (deal.getOrganization() != null && !deal.getOrganization().getId().equals(paymentOrgId)) {
+            throw new ResourceNotFoundException("Deal", dealId);
+        }
         return paymentMapper.toResponseList(paymentRepository.findByDealOrderByPaymentDateAsc(deal));
     }
 

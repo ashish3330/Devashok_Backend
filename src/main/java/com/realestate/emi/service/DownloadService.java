@@ -102,16 +102,32 @@ public class DownloadService {
             Font footerFont  = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE,   8, TEXT_FOOTER);
 
             // ── Header ──
-            Paragraph companyName = new Paragraph("Real Estate EMI Tracker", titleFont);
-            companyName.setAlignment(Element.ALIGN_CENTER);
-            doc.add(companyName);
+            Font brandFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, new Color(15, 25, 35));
+            Font brandSubFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, new Color(20, 184, 166));
+            Font reraFont = FontFactory.getFont(FontFactory.HELVETICA, 8, new Color(130, 130, 130));
 
-            Paragraph receiptLabel = new Paragraph("PAYMENT RECEIPT", subFont);
+            Paragraph brand = new Paragraph("DevAshok Enclave", brandFont);
+            brand.setAlignment(Element.ALIGN_CENTER);
+            doc.add(brand);
+
+            Paragraph tagline = new Paragraph("PREMIUM REAL ESTATE", brandSubFont);
+            tagline.setAlignment(Element.ALIGN_CENTER);
+            tagline.setSpacingAfter(2);
+            doc.add(tagline);
+
+            Paragraph rera = new Paragraph("RERA Reg. No: MH/NAVI/2021/00342", reraFont);
+            rera.setAlignment(Element.ALIGN_CENTER);
+            rera.setSpacingAfter(4);
+            doc.add(rera);
+
+            doc.add(new Chunk(new LineSeparator(1.5f, 100, new Color(20, 184, 166), Element.ALIGN_CENTER, -2)));
+
+            Paragraph receiptLabel = new Paragraph("\nPAYMENT RECEIPT", subFont);
             receiptLabel.setAlignment(Element.ALIGN_CENTER);
             receiptLabel.setSpacingAfter(6);
             doc.add(receiptLabel);
 
-            doc.add(new Chunk(new LineSeparator(1, 100, BLUE_DARK, Element.ALIGN_CENTER, -2)));
+            doc.add(new Chunk(new LineSeparator(0.5f, 40, new Color(200, 200, 200), Element.ALIGN_CENTER, -2)));
 
             // ── Receipt meta (# and date side by side) ──
             PdfPTable metaTable = new PdfPTable(2);
@@ -186,10 +202,23 @@ public class DownloadService {
 
             // ── Footer ──
             doc.add(new Chunk(new LineSeparator(0.5f, 100, new Color(200, 200, 200), Element.ALIGN_CENTER, -2)));
-            Paragraph footer = new Paragraph(
-                    "\nThis is a system-generated receipt and does not require a signature.", footerFont);
-            footer.setAlignment(Element.ALIGN_CENTER);
-            doc.add(footer);
+
+            Paragraph footerBrand = new Paragraph(
+                    "\nDevAshok Enclave  |  RERA: MH/NAVI/2021/00342", footerFont);
+            footerBrand.setAlignment(Element.ALIGN_CENTER);
+            doc.add(footerBrand);
+
+            Paragraph footerNote = new Paragraph(
+                    "This is a system-generated receipt and does not require a signature.", footerFont);
+            footerNote.setAlignment(Element.ALIGN_CENTER);
+            footerNote.setSpacingBefore(2);
+            doc.add(footerNote);
+
+            Paragraph footerContact = new Paragraph(
+                    "Plot No. 42, Sector 18, Navi Mumbai  |  +91 98765 43210  |  admin@devashokenclave.in", footerFont);
+            footerContact.setAlignment(Element.ALIGN_CENTER);
+            footerContact.setSpacingBefore(2);
+            doc.add(footerContact);
 
             doc.close();
             return out.toByteArray();
@@ -298,7 +327,7 @@ public class DownloadService {
             Row titleRow = sheet.createRow(r++);
             titleRow.setHeightInPoints(28);
             Cell titleCell = titleRow.createCell(0);
-            titleCell.setCellValue("EMI SCHEDULE  |  "
+            titleCell.setCellValue("DevAshok Enclave  |  EMI SCHEDULE  |  "
                     + deal.getCustomer().getFullName() + "  /  " + deal.getPropertyType().getName());
             titleCell.setCellStyle(titleStyle);
             sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 8));

@@ -1,6 +1,7 @@
 package com.realestate.emi.dto.response;
 
 import com.realestate.emi.enums.DealStatus;
+import com.realestate.emi.enums.PlanType;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,6 +31,7 @@ public class DealSummaryResponse {
     private BigDecimal emiAmountPerMonth;
     private BigDecimal totalPayableAfterDeposit;
     private LocalDate dealDate;
+    private PlanType planType;
     private DealStatus status;
     private LocalDate nextDueDate;
     private BigDecimal totalPaid;

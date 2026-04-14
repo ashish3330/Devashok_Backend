@@ -51,6 +51,9 @@ public class AuthController {
                     .tokenType("Bearer")
                     .username(user.getUsername())
                     .fullName(user.getFullName())
+                    .role(user.getRole().name())
+                    .organizationCode(user.getOrganization() != null ? user.getOrganization().getCode() : null)
+                    .organizationName(user.getOrganization() != null ? user.getOrganization().getName() : null)
                     .build();
 
             log.info("Successful login for user: {}", request.getUsername());

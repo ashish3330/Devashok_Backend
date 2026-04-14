@@ -24,6 +24,7 @@ public class PropertyTypeController {
     private final PropertyTypeService propertyTypeService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<ApiResponse<List<PropertyTypeResponse>>> findAll() {
         List<PropertyTypeResponse> propertyTypes = propertyTypeService.findAll();
         return ResponseEntity.ok(ApiResponse.success(propertyTypes, "Property types retrieved successfully"));

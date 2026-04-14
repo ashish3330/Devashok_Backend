@@ -26,4 +26,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.paymentMethod <> 'INITIAL_DEPOSIT' AND YEAR(p.paymentDate) = :year AND MONTH(p.paymentDate) = :month")
     BigDecimal sumByMonth(@Param("year") int year, @Param("month") int month);
+
+    @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.deal.organization.id = :orgId AND p.paymentMethod != 'INITIAL_DEPOSIT'")
+    BigDecimal sumAllPaymentsByOrg(@Param("orgId") Long orgId);
+
+    @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.deal.organization.id = :orgId AND p.paymentMethod != 'INITIAL_DEPOSIT' AND YEAR(p.paymentDate) = :year AND MONTH(p.paymentDate) = :month")
+    BigDecimal sumByMonthAndOrg(@Param("year") int year, @Param("month") int month, @Param("orgId") Long orgId);
 }

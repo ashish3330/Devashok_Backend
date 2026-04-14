@@ -7,7 +7,13 @@ import com.realestate.emi.enums.EmiStatus;
 import com.realestate.emi.repository.CustomerRepository;
 import com.realestate.emi.repository.DealRepository;
 import com.realestate.emi.repository.EmiScheduleRepository;
+import com.realestate.emi.repository.MaterialRepository;
+import com.realestate.emi.repository.OrganizationRepository;
 import com.realestate.emi.repository.PaymentRepository;
+import com.realestate.emi.repository.SalaryRecordRepository;
+import com.realestate.emi.repository.StaffRepository;
+import com.realestate.emi.repository.StockTransactionRepository;
+import com.realestate.emi.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,19 +38,29 @@ public class DashboardService {
     private final PaymentRepository paymentRepository;
     private final EmiScheduleRepository emiScheduleRepository;
     private final CustomerRepository customerRepository;
+    private final SalaryRecordRepository salaryRecordRepository;
+    private final StaffRepository staffRepository;
+    private final MaterialRepository materialRepository;
+    private final StockTransactionRepository stockTransactionRepository;
+    private final TenantContext tenantContext;
+    private final OrganizationRepository organizationRepository;
 
     // ── Legacy summary (kept for backward compat) ───────────────────────────
 
     @Transactional(readOnly = true)
     public DashboardResponse getSummary() {
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        long active = dealRepository.countByStatusAndOrganizationId(DealStatus.ACTIVE, orgId);
+        long completed = dealRepository.countByStatusAndOrganizationId(DealStatus.COMPLETED, orgId);
+        long defaulted = dealRepository.countByStatusAndOrganizationId(DealStatus.DEFAULTED, orgId);
         return DashboardResponse.builder()
-                .totalDeals(dealRepository.count())
-                .activeDeals(dealRepository.countByStatus(DealStatus.ACTIVE))
-                .completedDeals(dealRepository.countByStatus(DealStatus.COMPLETED))
-                .defaultedDeals(dealRepository.countByStatus(DealStatus.DEFAULTED))
-                .totalDealAmount(dealRepository.sumTotalPayableAfterDeposit())
-                .totalReceived(paymentRepository.sumAllPayments())
-                .totalOutstanding(emiScheduleRepository.sumTotalOutstanding())
+                .totalDeals(active + completed + defaulted)
+                .activeDeals(active)
+                .completedDeals(completed)
+                .defaultedDeals(defaulted)
+                .totalDealAmount(dealRepository.sumTotalPayableAfterDepositByOrg(orgId))
+                .totalReceived(paymentRepository.sumAllPaymentsByOrg(orgId))
+                .totalOutstanding(emiScheduleRepository.sumTotalOutstandingByOrg(orgId))
                 .build();
     }
 
@@ -52,17 +68,18 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public MonthlyAnalyticsResponse getMonthlyAnalytics(int year, int month) {
-        long completed = emiScheduleRepository.countByStatusAndMonth(EmiStatus.PAID, year, month);
-        long pending   = emiScheduleRepository.countByStatusAndMonth(EmiStatus.PENDING, year, month);
-        long partial   = emiScheduleRepository.countByStatusAndMonth(EmiStatus.PARTIAL, year, month);
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        long completed = emiScheduleRepository.countByStatusAndMonthAndOrg(EmiStatus.PAID, year, month, orgId);
+        long pending   = emiScheduleRepository.countByStatusAndMonthAndOrg(EmiStatus.PENDING, year, month, orgId);
+        long partial   = emiScheduleRepository.countByStatusAndMonthAndOrg(EmiStatus.PARTIAL, year, month, orgId);
 
         return MonthlyAnalyticsResponse.builder()
                 .year(year).month(month)
                 .paymentsCompleted(completed)
                 .paymentsPending(pending)
                 .paymentsPartial(partial)
-                .amountReceived(paymentRepository.sumByMonth(year, month))
-                .amountPending(emiScheduleRepository.sumOutstandingByMonth(year, month))
+                .amountReceived(paymentRepository.sumByMonthAndOrg(year, month, orgId))
+                .amountPending(emiScheduleRepository.sumOutstandingByMonthAndOrg(year, month, orgId))
                 .build();
     }
 
@@ -83,17 +100,80 @@ public class DashboardService {
                 .build();
     }
 
+    // ── Expense dashboard ────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public ExpenseDashboardResponse getExpenseDashboard() {
+        log.debug("Building expense dashboard");
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        LocalDate today = LocalDate.now();
+        int year = today.getYear();
+        int month = today.getMonthValue();
+
+        // Salary data
+        BigDecimal totalMonthlySalaryBudget = staffRepository.sumTotalMonthlySalaryByOrg(orgId);
+        BigDecimal currentMonthPaid = salaryRecordRepository.sumPaidByMonthAndOrg(year, month, orgId);
+        BigDecimal currentMonthNet = salaryRecordRepository.sumNetSalaryByMonthAndOrg(year, month, orgId);
+        BigDecimal currentMonthPending = currentMonthNet.subtract(currentMonthPaid);
+        if (currentMonthPending.compareTo(BigDecimal.ZERO) < 0) currentMonthPending = BigDecimal.ZERO;
+        long totalActiveStaff = staffRepository.findByOrganizationIdAndIsActiveTrueOrderByFullNameAsc(orgId).size();
+        long pendingSalaryCount = salaryRecordRepository.findByStatusAndOrg(com.realestate.emi.enums.SalaryStatus.PENDING, orgId).size();
+
+        // Material data
+        BigDecimal totalInventoryValue = materialRepository.calculateTotalInventoryValueByOrg(orgId);
+        BigDecimal materialExpenseThisMonth = stockTransactionRepository.sumOutwardCostByMonthAndOrg(year, month, orgId);
+        long totalMaterials = materialRepository.findByOrganizationIdAndIsActiveTrueOrderByNameAsc(orgId).size();
+        long lowStockAlerts = materialRepository.findLowStockMaterialsByOrg(orgId).size();
+        long outOfStockCount = materialRepository.findOutOfStockMaterialsByOrg(orgId).size();
+
+        BigDecimal totalExpensesThisMonth = currentMonthPaid.add(materialExpenseThisMonth);
+
+        // Build 6-month trend
+        List<ExpenseDashboardResponse.MonthlyExpenseItem> trend = new ArrayList<>();
+        YearMonth current = YearMonth.of(year, month);
+        for (int i = 5; i >= 0; i--) {
+            YearMonth ym = current.minusMonths(i);
+            int y = ym.getYear();
+            int m = ym.getMonthValue();
+            BigDecimal salaryExp = coalesce(salaryRecordRepository.sumPaidByMonthAndOrg(y, m, orgId));
+            BigDecimal materialExp = coalesce(stockTransactionRepository.sumOutwardCostByMonthAndOrg(y, m, orgId));
+            String monthLabel = ym.getMonth().getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH) + " " + y;
+            trend.add(ExpenseDashboardResponse.MonthlyExpenseItem.builder()
+                    .year(y).month(m).monthLabel(monthLabel)
+                    .salaryExpense(salaryExp)
+                    .materialExpense(materialExp)
+                    .totalExpense(salaryExp.add(materialExp))
+                    .build());
+        }
+
+        return ExpenseDashboardResponse.builder()
+                .totalMonthlySalaryBudget(coalesce(totalMonthlySalaryBudget))
+                .currentMonthSalaryPaid(coalesce(currentMonthPaid))
+                .currentMonthSalaryPending(currentMonthPending)
+                .totalActiveStaff(totalActiveStaff)
+                .pendingSalaryCount(pendingSalaryCount)
+                .totalInventoryValue(coalesce(totalInventoryValue))
+                .totalMaterialExpenseThisMonth(coalesce(materialExpenseThisMonth))
+                .totalMaterials(totalMaterials)
+                .lowStockAlerts(lowStockAlerts)
+                .outOfStockCount(outOfStockCount)
+                .totalExpensesThisMonth(totalExpensesThisMonth)
+                .expenseTrend(trend)
+                .build();
+    }
+
     // ── Portfolio overview ───────────────────────────────────────────────────
 
     private PortfolioOverviewResponse buildPortfolioOverview(LocalDate today) {
-        long totalDeals     = dealRepository.count();
-        long activeDeals    = dealRepository.countByStatus(DealStatus.ACTIVE);
-        long completedDeals = dealRepository.countByStatus(DealStatus.COMPLETED);
-        long defaultedDeals = dealRepository.countByStatus(DealStatus.DEFAULTED);
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        long activeDeals    = dealRepository.countByStatusAndOrganizationId(DealStatus.ACTIVE, orgId);
+        long completedDeals = dealRepository.countByStatusAndOrganizationId(DealStatus.COMPLETED, orgId);
+        long defaultedDeals = dealRepository.countByStatusAndOrganizationId(DealStatus.DEFAULTED, orgId);
+        long totalDeals     = activeDeals + completedDeals + defaultedDeals;
 
-        BigDecimal totalCollected   = coalesce(paymentRepository.sumAllPayments());
-        BigDecimal totalOutstanding = coalesce(emiScheduleRepository.sumTotalOutstanding());
-        BigDecimal totalPortfolio   = coalesce(dealRepository.sumTotalPayableAfterDeposit());
+        BigDecimal totalCollected   = coalesce(paymentRepository.sumAllPaymentsByOrg(orgId));
+        BigDecimal totalOutstanding = coalesce(emiScheduleRepository.sumTotalOutstandingByOrg(orgId));
+        BigDecimal totalPortfolio   = coalesce(dealRepository.sumTotalPayableAfterDepositByOrg(orgId));
 
         BigDecimal totalPayable = totalCollected.add(totalOutstanding);
         double efficiency = totalPayable.compareTo(BigDecimal.ZERO) == 0 ? 0.0
@@ -101,7 +181,7 @@ public class DashboardService {
                                 .divide(totalPayable, 2, RoundingMode.HALF_UP)
                                 .doubleValue();
 
-        long npaDeals = emiScheduleRepository.countNpaDeals(today.minusDays(90));
+        long npaDeals = emiScheduleRepository.countNpaDealsByOrg(today.minusDays(90), orgId);
         double npaRate = activeDeals == 0 ? 0.0
                 : round2((double) npaDeals / activeDeals * 100);
 
@@ -116,16 +196,17 @@ public class DashboardService {
                 .collectionEfficiencyPercent(efficiency)
                 .npaDeals(npaDeals)
                 .npaRatePercent(npaRate)
-                .averageDealValue(coalesce(dealRepository.avgDealValue()))
-                .averageEmiAmount(coalesce(dealRepository.avgEmiAmount()))
-                .totalCustomers(customerRepository.count())
+                .averageDealValue(coalesce(dealRepository.avgDealValueByOrg(orgId)))
+                .averageEmiAmount(coalesce(dealRepository.avgEmiAmountByOrg(orgId)))
+                .totalCustomers(customerRepository.countByOrganizationId(orgId))
                 .build();
     }
 
     // ── Upcoming EMI windows ─────────────────────────────────────────────────
 
     private UpcomingEmiWindow buildUpcomingWindow(LocalDate from, LocalDate to, String label) {
-        List<EmiSchedule> schedules = emiScheduleRepository.findUpcomingEmis(from, to);
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        List<EmiSchedule> schedules = emiScheduleRepository.findUpcomingEmisByOrg(from, to, orgId);
 
         List<UpcomingEmiItem> items = schedules.stream().map(e -> UpcomingEmiItem.builder()
                 .emiId(e.getId())
@@ -156,7 +237,8 @@ public class DashboardService {
     // ── Overdue / Aging analysis ─────────────────────────────────────────────
 
     private OverdueAnalysisResponse buildOverdueAnalysis(LocalDate today) {
-        List<EmiSchedule> allOverdue = emiScheduleRepository.findAllOverdue(today);
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        List<EmiSchedule> allOverdue = emiScheduleRepository.findAllOverdueByOrg(today, orgId);
 
         AgingBucket b1 = buildBucket("1-30 Days",  allOverdue, today, 1,  30);
         AgingBucket b2 = buildBucket("31-60 Days", allOverdue, today, 31, 60);
@@ -217,6 +299,7 @@ public class DashboardService {
     // ── Monthly trend (last 12 months) ───────────────────────────────────────
 
     private List<MonthlyTrendItem> buildMonthlyTrend(LocalDate today) {
+        Long orgId = tenantContext.getCurrentOrganizationId();
         List<MonthlyTrendItem> trend = new ArrayList<>();
         YearMonth current = YearMonth.of(today.getYear(), today.getMonthValue());
 
@@ -225,12 +308,12 @@ public class DashboardService {
             int y = ym.getYear();
             int m = ym.getMonthValue();
 
-            long paid    = emiScheduleRepository.countByStatusAndMonth(EmiStatus.PAID, y, m);
-            long pending = emiScheduleRepository.countByStatusAndMonth(EmiStatus.PENDING, y, m);
-            long partial = emiScheduleRepository.countByStatusAndMonth(EmiStatus.PARTIAL, y, m);
+            long paid    = emiScheduleRepository.countByStatusAndMonthAndOrg(EmiStatus.PAID, y, m, orgId);
+            long pending = emiScheduleRepository.countByStatusAndMonthAndOrg(EmiStatus.PENDING, y, m, orgId);
+            long partial = emiScheduleRepository.countByStatusAndMonthAndOrg(EmiStatus.PARTIAL, y, m, orgId);
 
-            BigDecimal collected = coalesce(paymentRepository.sumByMonth(y, m));
-            BigDecimal outstanding = coalesce(emiScheduleRepository.sumOutstandingByMonth(y, m));
+            BigDecimal collected = coalesce(paymentRepository.sumByMonthAndOrg(y, m, orgId));
+            BigDecimal outstanding = coalesce(emiScheduleRepository.sumOutstandingByMonthAndOrg(y, m, orgId));
 
             BigDecimal totalDue = collected.add(outstanding);
             double rate = totalDue.compareTo(BigDecimal.ZERO) == 0 ? 0.0
@@ -255,10 +338,11 @@ public class DashboardService {
     // ── Deal distribution ────────────────────────────────────────────────────
 
     private DealDistributionResponse buildDealDistribution() {
-        long totalDeals = dealRepository.count();
-        BigDecimal totalValue = coalesce(dealRepository.sumTotalAmount());
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        long totalDeals = dealRepository.findAllByOrganization(orgId).size();
+        BigDecimal totalValue = coalesce(dealRepository.sumTotalAmountByOrg(orgId));
 
-        List<Object[]> rows = dealRepository.distributionByPropertyType();
+        List<Object[]> rows = dealRepository.distributionByPropertyTypeAndOrg(orgId);
         List<DealDistributionResponse.PropertyTypeBreakdown> byType = rows.stream().map(r -> {
             String name  = (String) r[0];
             long count   = ((Number) r[1]).longValue();
@@ -273,9 +357,9 @@ public class DashboardService {
         }).collect(Collectors.toList());
 
         List<DealDistributionResponse.StatusBreakdown> byStatus = List.of(
-                statusBreakdown("ACTIVE",    dealRepository.countByStatus(DealStatus.ACTIVE),    totalDeals),
-                statusBreakdown("COMPLETED", dealRepository.countByStatus(DealStatus.COMPLETED), totalDeals),
-                statusBreakdown("DEFAULTED", dealRepository.countByStatus(DealStatus.DEFAULTED), totalDeals)
+                statusBreakdown("ACTIVE",    dealRepository.countByStatusAndOrganizationId(DealStatus.ACTIVE, orgId),    totalDeals),
+                statusBreakdown("COMPLETED", dealRepository.countByStatusAndOrganizationId(DealStatus.COMPLETED, orgId), totalDeals),
+                statusBreakdown("DEFAULTED", dealRepository.countByStatusAndOrganizationId(DealStatus.DEFAULTED, orgId), totalDeals)
         );
 
         return DealDistributionResponse.builder()

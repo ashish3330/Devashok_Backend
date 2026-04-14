@@ -36,7 +36,8 @@ public class JwtService {
                 .addClaims(Map.of(
                         "userId", user.getId(),
                         "email", user.getUsername(),
-                        "roles", List.of("ADMIN")
+                        "roles", List.of(user.getRole().name()),
+                        "organizationId", user.getOrganization() != null ? user.getOrganization().getId() : 0
                 ))
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)

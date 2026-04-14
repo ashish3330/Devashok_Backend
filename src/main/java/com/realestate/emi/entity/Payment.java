@@ -44,6 +44,10 @@ public class Payment extends BaseAuditEntity {
     @JoinColumn(name = "emi_schedule_id")
     private EmiSchedule emiSchedule;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "installment_phase_id")
+    private InstallmentPhase installmentPhase;
+
     @Column(name = "created_by_admin")
     private String createdByAdmin;
 }

@@ -61,6 +61,12 @@ public class JwtTokenValidator {
             userId = ((Number) userIdObj).longValue();
         }
 
+        Object orgIdObj = claims.get("organizationId");
+        Long organizationId = null;
+        if (orgIdObj instanceof Number) {
+            organizationId = ((Number) orgIdObj).longValue();
+        }
+
         @SuppressWarnings("unchecked")
         List<String> roles = (List<String>) claims.get("roles");
         List<SimpleGrantedAuthority> authorities = roles != null
@@ -69,7 +75,7 @@ public class JwtTokenValidator {
                         .collect(Collectors.toList())
                 : List.of();
 
-        CustomPrincipal principal = new CustomPrincipal(userId, email, claims);
+        CustomPrincipal principal = new CustomPrincipal(userId, email, organizationId, claims);
         return new UsernamePasswordAuthenticationToken(principal, null, authorities);
     }
 }

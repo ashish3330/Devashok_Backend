@@ -28,6 +28,14 @@ public interface DealRepository extends JpaRepository<Deal, Long> {
 
     long countByStatus(DealStatus status);
 
+    @Query("SELECT d FROM Deal d JOIN FETCH d.customer JOIN FETCH d.propertyType WHERE d.organization.id = :orgId ORDER BY d.createdAt DESC")
+    List<Deal> findAllByOrganization(@Param("orgId") Long orgId);
+
+    @Query("SELECT d FROM Deal d JOIN FETCH d.customer JOIN FETCH d.propertyType WHERE d.id = :id AND d.organization.id = :orgId")
+    Optional<Deal> findByIdAndOrganization(@Param("id") Long id, @Param("orgId") Long orgId);
+
+    long countByStatusAndOrganizationId(DealStatus status, Long orgId);
+
     boolean existsByPropertyTypeId(Long propertyTypeId);
 
     @Query("SELECT AVG(d.totalPayableAfterDeposit) FROM Deal d WHERE d.totalPayableAfterDeposit IS NOT NULL")
@@ -38,4 +46,19 @@ public interface DealRepository extends JpaRepository<Deal, Long> {
 
     @Query("SELECT d.propertyType.name, COUNT(d), COALESCE(SUM(d.totalPayableAfterDeposit), 0) FROM Deal d GROUP BY d.propertyType.name ORDER BY COUNT(d) DESC")
     List<Object[]> distributionByPropertyType();
+
+    @Query("SELECT COALESCE(SUM(d.totalPayableAfterDeposit), 0) FROM Deal d WHERE d.organization.id = :orgId")
+    BigDecimal sumTotalPayableAfterDepositByOrg(@Param("orgId") Long orgId);
+
+    @Query("SELECT AVG(d.totalPayableAfterDeposit) FROM Deal d WHERE d.totalPayableAfterDeposit IS NOT NULL AND d.organization.id = :orgId")
+    BigDecimal avgDealValueByOrg(@Param("orgId") Long orgId);
+
+    @Query("SELECT AVG(d.emiAmountPerMonth) FROM Deal d WHERE d.emiAmountPerMonth IS NOT NULL AND d.organization.id = :orgId")
+    BigDecimal avgEmiAmountByOrg(@Param("orgId") Long orgId);
+
+    @Query("SELECT COALESCE(SUM(d.totalAmount), 0) FROM Deal d WHERE d.organization.id = :orgId")
+    BigDecimal sumTotalAmountByOrg(@Param("orgId") Long orgId);
+
+    @Query("SELECT d.propertyType.name, COUNT(d), COALESCE(SUM(d.totalPayableAfterDeposit), 0) FROM Deal d WHERE d.organization.id = :orgId GROUP BY d.propertyType.name ORDER BY COUNT(d) DESC")
+    List<Object[]> distributionByPropertyTypeAndOrg(@Param("orgId") Long orgId);
 }

@@ -16,5 +16,6 @@ import java.util.List;
 public class DealDetailResponse extends DealSummaryResponse {
 
     private List<EmiScheduleResponse> emiSchedules;
+    private List<InstallmentPhaseResponse> installmentPhases;
     private List<PaymentResponse> payments;
 }

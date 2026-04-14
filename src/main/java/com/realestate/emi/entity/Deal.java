@@ -1,6 +1,7 @@
 package com.realestate.emi.entity;
 
 import com.realestate.emi.enums.DealStatus;
+import com.realestate.emi.enums.PlanType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -22,6 +23,10 @@ public class Deal extends BaseAuditEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id")
+    private Organization organization;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "customer_id", nullable = false)
     private Customer customer;
@@ -39,7 +44,7 @@ public class Deal extends BaseAuditEntity {
     @Column(name = "initial_deposit", nullable = false, precision = 19, scale = 2)
     private BigDecimal initialDeposit;
 
-    @Column(name = "emi_tenure_months", nullable = false)
+    @Column(name = "emi_tenure_months")
     private Integer emiTenureMonths;
 
     @Column(name = "interest_rate_percent", precision = 5, scale = 2)
@@ -60,12 +65,21 @@ public class Deal extends BaseAuditEntity {
     @Column(name = "total_payable_after_deposit", precision = 19, scale = 2)
     private BigDecimal totalPayableAfterDeposit;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan_type", nullable = false, length = 30)
+    @Builder.Default
+    private PlanType planType = PlanType.EMI;
+
     @Column(name = "next_due_date")
     private LocalDate nextDueDate;
 
     @OneToMany(mappedBy = "deal", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     @Builder.Default
     private List<EmiSchedule> emiSchedules = new ArrayList<>();
+
+    @OneToMany(mappedBy = "deal", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @Builder.Default
+    private List<InstallmentPhase> installmentPhases = new ArrayList<>();
 
     @OneToMany(mappedBy = "deal", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     @Builder.Default

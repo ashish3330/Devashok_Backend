@@ -75,4 +75,22 @@ public interface EmiScheduleRepository extends JpaRepository<EmiSchedule, Long> 
     // Overdue EMIs not yet bounced — used by bounce charge scheduler
     @Query("SELECT e FROM EmiSchedule e WHERE e.dueDate < :today AND e.status IN ('PENDING', 'PARTIAL') AND e.bounced = false")
     List<EmiSchedule> findOverdueUnbouncedEmis(@Param("today") LocalDate today);
+
+    @Query("SELECT COALESCE(SUM(es.dueAmount - es.paidAmount), 0) FROM EmiSchedule es WHERE es.deal.organization.id = :orgId AND es.status IN ('PENDING','PARTIAL')")
+    BigDecimal sumTotalOutstandingByOrg(@Param("orgId") Long orgId);
+
+    @Query("SELECT COUNT(es) FROM EmiSchedule es WHERE es.status = :status AND YEAR(es.dueDate) = :year AND MONTH(es.dueDate) = :month AND es.deal.organization.id = :orgId")
+    long countByStatusAndMonthAndOrg(@Param("status") EmiStatus status, @Param("year") int year, @Param("month") int month, @Param("orgId") Long orgId);
+
+    @Query("SELECT COALESCE(SUM(es.dueAmount - es.paidAmount), 0) FROM EmiSchedule es WHERE YEAR(es.dueDate) = :year AND MONTH(es.dueDate) = :month AND es.status IN ('PENDING','PARTIAL') AND es.deal.organization.id = :orgId")
+    BigDecimal sumOutstandingByMonthAndOrg(@Param("year") int year, @Param("month") int month, @Param("orgId") Long orgId);
+
+    @Query("SELECT COUNT(DISTINCT es.deal.id) FROM EmiSchedule es WHERE es.dueDate < :cutoffDate AND es.status IN ('PENDING','PARTIAL') AND es.deal.organization.id = :orgId")
+    long countNpaDealsByOrg(@Param("cutoffDate") java.time.LocalDate cutoffDate, @Param("orgId") Long orgId);
+
+    @Query("SELECT es FROM EmiSchedule es JOIN FETCH es.deal d JOIN FETCH d.customer JOIN FETCH d.propertyType WHERE es.dueDate BETWEEN :from AND :to AND es.status IN ('PENDING','PARTIAL') AND es.deal.organization.id = :orgId ORDER BY es.dueDate ASC")
+    List<com.realestate.emi.entity.EmiSchedule> findUpcomingEmisByOrg(@Param("from") java.time.LocalDate from, @Param("to") java.time.LocalDate to, @Param("orgId") Long orgId);
+
+    @Query("SELECT es FROM EmiSchedule es JOIN FETCH es.deal d JOIN FETCH d.customer JOIN FETCH d.propertyType WHERE es.dueDate < :today AND es.status IN ('PENDING','PARTIAL') AND es.deal.organization.id = :orgId ORDER BY es.dueDate ASC")
+    List<com.realestate.emi.entity.EmiSchedule> findAllOverdueByOrg(@Param("today") java.time.LocalDate today, @Param("orgId") Long orgId);
 }

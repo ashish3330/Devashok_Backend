@@ -3,6 +3,7 @@ package com.realestate.emi.controller;
 import com.realestate.emi.dto.response.ApiResponse;
 import com.realestate.emi.dto.response.ComprehensiveAnalyticsResponse;
 import com.realestate.emi.dto.response.DashboardResponse;
+import com.realestate.emi.dto.response.ExpenseDashboardResponse;
 import com.realestate.emi.dto.response.MonthlyAnalyticsResponse;
 import com.realestate.emi.service.DashboardService;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +21,7 @@ import java.time.YearMonth;
 @RestController
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
 public class DashboardController {
 
     private final DashboardService dashboardService;
@@ -44,5 +45,11 @@ public class DashboardController {
     public ResponseEntity<ApiResponse<ComprehensiveAnalyticsResponse>> getComprehensiveAnalytics() {
         ComprehensiveAnalyticsResponse response = dashboardService.getComprehensiveAnalytics();
         return ResponseEntity.ok(ApiResponse.success(response, "Analytics retrieved successfully"));
+    }
+
+    @GetMapping("/expenses")
+    public ResponseEntity<ApiResponse<ExpenseDashboardResponse>> getExpenseDashboard() {
+        ExpenseDashboardResponse response = dashboardService.getExpenseDashboard();
+        return ResponseEntity.ok(ApiResponse.success(response, "Expense dashboard retrieved successfully"));
     }
 }

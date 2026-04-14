@@ -80,6 +80,7 @@ public class SecurityConfig {
                     "/api/auth/login",
                     "/api/auth/admin/send-otp",
                     "/api/auth/admin/verify-otp",
+                    "/api/organizations/public/**",
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",

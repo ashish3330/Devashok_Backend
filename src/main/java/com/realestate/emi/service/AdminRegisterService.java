@@ -55,7 +55,7 @@ public class AdminRegisterService {
                 .password(passwordEncoder.encode(req.getPassword()))
                 .fullName(req.getFullName())
                 .mobile(req.getMobile())
-                .role(Role.ADMIN)
+                .role(req.getRole() != null ? req.getRole() : Role.ADMIN)
                 .build();
 
         userRepository.save(admin);

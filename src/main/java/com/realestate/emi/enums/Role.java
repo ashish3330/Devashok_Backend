@@ -1,5 +1,7 @@
 package com.realestate.emi.enums;
 
 public enum Role {
-    ADMIN
+    ADMIN,
+    SUPERVISOR,
+    VIEWER
 }

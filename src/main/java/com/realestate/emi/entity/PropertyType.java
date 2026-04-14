@@ -21,4 +21,8 @@ public class PropertyType extends BaseAuditEntity {
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id")
+    private Organization organization;
 }

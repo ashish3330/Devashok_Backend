@@ -6,7 +6,10 @@ import com.realestate.emi.entity.Customer;
 import com.realestate.emi.exception.ResourceNotFoundException;
 import com.realestate.emi.exception.ServiceException;
 import com.realestate.emi.mapper.CustomerMapper;
+import com.realestate.emi.entity.Organization;
 import com.realestate.emi.repository.CustomerRepository;
+import com.realestate.emi.repository.OrganizationRepository;
+import com.realestate.emi.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,11 +26,14 @@ public class CustomerService {
 
     private final CustomerRepository customerRepository;
     private final CustomerMapper customerMapper;
+    private final TenantContext tenantContext;
+    private final OrganizationRepository organizationRepository;
 
     @Transactional(readOnly = true)
     public List<CustomerResponse> findAll() {
         log.debug("Fetching all customers");
-        return customerRepository.findAll().stream()
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        return customerRepository.findByOrganizationIdOrderByFullNameAsc(orgId).stream()
                 .map(customerMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -37,6 +43,10 @@ public class CustomerService {
         log.debug("Fetching customer with id: {}", id);
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", id));
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        if (customer.getOrganization() != null && !customer.getOrganization().getId().equals(orgId)) {
+            throw new ResourceNotFoundException("Customer", id);
+        }
         return customerMapper.toResponse(customer);
     }
 
@@ -44,22 +54,27 @@ public class CustomerService {
     public CustomerResponse create(CustomerRequest request) {
         log.debug("Creating customer with phone: {}", request.getPhoneNumber());
 
-        if (customerRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+        Long orgId = tenantContext.getCurrentOrganizationId();
+
+        if (customerRepository.existsByPhoneNumberAndOrganizationId(request.getPhoneNumber(), orgId)) {
             throw new ServiceException("Customer with phone number '" + request.getPhoneNumber() + "' already exists",
                     "DUPLICATE_PHONE");
         }
 
         if (StringUtils.hasText(request.getAadharNumber())
-                && customerRepository.existsByAadharNumber(request.getAadharNumber())) {
+                && customerRepository.existsByAadharNumberAndOrganizationId(request.getAadharNumber(), orgId)) {
             throw new ServiceException("Customer with Aadhar number already exists", "DUPLICATE_AADHAR");
         }
 
         if (StringUtils.hasText(request.getPanNumber())
-                && customerRepository.existsByPanNumber(request.getPanNumber())) {
+                && customerRepository.existsByPanNumberAndOrganizationId(request.getPanNumber(), orgId)) {
             throw new ServiceException("Customer with PAN number already exists", "DUPLICATE_PAN");
         }
 
         Customer customer = customerMapper.toEntity(request);
+        Organization org = organizationRepository.findById(orgId)
+                .orElseThrow(() -> new ServiceException("Organization not found", "ORG_NOT_FOUND"));
+        customer.setOrganization(org);
         Customer saved = customerRepository.save(customer);
         log.info("Created customer with id: {}", saved.getId());
         return customerMapper.toResponse(saved);
@@ -70,22 +85,26 @@ public class CustomerService {
         log.debug("Updating customer with id: {}", id);
         Customer existing = customerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", id));
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        if (existing.getOrganization() != null && !existing.getOrganization().getId().equals(orgId)) {
+            throw new ResourceNotFoundException("Customer", id);
+        }
 
         if (!existing.getPhoneNumber().equals(request.getPhoneNumber())
-                && customerRepository.existsByPhoneNumberAndIdNot(request.getPhoneNumber(), id)) {
+                && customerRepository.existsByPhoneNumberAndIdNotAndOrganizationId(request.getPhoneNumber(), id, orgId)) {
             throw new ServiceException("Customer with phone number '" + request.getPhoneNumber() + "' already exists",
                     "DUPLICATE_PHONE");
         }
 
         if (StringUtils.hasText(request.getAadharNumber())
                 && !request.getAadharNumber().equals(existing.getAadharNumber())
-                && customerRepository.existsByAadharNumberAndIdNot(request.getAadharNumber(), id)) {
+                && customerRepository.existsByAadharNumberAndIdNotAndOrganizationId(request.getAadharNumber(), id, orgId)) {
             throw new ServiceException("Customer with Aadhar number already exists", "DUPLICATE_AADHAR");
         }
 
         if (StringUtils.hasText(request.getPanNumber())
                 && !request.getPanNumber().equals(existing.getPanNumber())
-                && customerRepository.existsByPanNumberAndIdNot(request.getPanNumber(), id)) {
+                && customerRepository.existsByPanNumberAndIdNotAndOrganizationId(request.getPanNumber(), id, orgId)) {
             throw new ServiceException("Customer with PAN number already exists", "DUPLICATE_PAN");
         }
 

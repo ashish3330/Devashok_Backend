@@ -1,5 +1,6 @@
 package com.realestate.emi.dto.request;
 
+import com.realestate.emi.enums.PlanType;
 import com.realestate.emi.util.ValidEmiTenure;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -34,7 +35,6 @@ public class DealRequest {
     @DecimalMin(value = "0.00", message = "Initial deposit must be 0 or greater")
     private BigDecimal initialDeposit;
 
-    @NotNull(message = "EMI tenure is required")
     @ValidEmiTenure
     private Integer emiTenureMonths;
 
@@ -44,4 +44,6 @@ public class DealRequest {
 
     @NotNull(message = "Deal date is required")
     private LocalDate dealDate;
+
+    private PlanType planType = PlanType.EMI;
 }
