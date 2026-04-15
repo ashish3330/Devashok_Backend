@@ -9,7 +9,6 @@ import com.realestate.emi.enums.AttendanceStatus;
 import com.realestate.emi.enums.SalaryStatus;
 import com.realestate.emi.exception.ResourceNotFoundException;
 import com.realestate.emi.exception.ServiceException;
-import com.realestate.emi.exception.ServiceException;
 import com.realestate.emi.repository.AttendanceRepository;
 import com.realestate.emi.repository.OrganizationRepository;
 import com.realestate.emi.repository.SalaryRecordRepository;

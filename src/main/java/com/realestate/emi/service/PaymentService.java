@@ -40,6 +40,9 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse recordPayment(Long dealId, PaymentRequest request) {
+        if (request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ServiceException("Payment amount must be greater than zero", "INVALID_AMOUNT");
+        }
         log.debug("Recording payment for dealId: {}", dealId);
 
         // 1. Load deal
@@ -92,6 +95,9 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse paySpecificEmi(Long dealId, Long scheduleId, PaymentRequest request) {
+        if (request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ServiceException("Payment amount must be greater than zero", "INVALID_AMOUNT");
+        }
         log.debug("Paying specific EMI schedule {} for dealId: {}", scheduleId, dealId);
 
         Deal deal = dealRepository.findByIdWithDetails(dealId)

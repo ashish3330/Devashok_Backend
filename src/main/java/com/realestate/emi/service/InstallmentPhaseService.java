@@ -158,8 +158,14 @@ public class InstallmentPhaseService {
 
         // Update phase payment
         phase.setPaidAmount(phase.getPaidAmount().add(request.getAmount()));
-        if (phase.getPaidAmount().compareTo(totalDue) >= 0) {
+        // Mark PAID if paid amount covers the base due amount (interest forgiven on full payment)
+        // OR if paid amount covers totalDue (base + interest)
+        if (phase.getPaidAmount().compareTo(phase.getDueAmount()) >= 0) {
             phase.setStatus(PhaseStatus.PAID);
+            // Clear interest if base amount is fully covered
+            if (phase.getPaidAmount().compareTo(totalDue) < 0) {
+                log.info("Phase {} base amount fully paid, waiving remaining interest for deal {}", phase.getPhaseName(), dealId);
+            }
             log.info("Phase {} fully paid for deal {}", phase.getPhaseName(), dealId);
         } else {
             phase.setStatus(PhaseStatus.PARTIAL);

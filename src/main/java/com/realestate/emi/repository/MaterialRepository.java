@@ -38,4 +38,6 @@ public interface MaterialRepository extends JpaRepository<Material, Long> {
     BigDecimal calculateTotalInventoryValueByOrg(@Param("orgId") Long orgId);
 
     List<Material> findByCategoryAndOrganizationIdAndIsActiveTrue(MaterialCategory category, Long orgId);
+
+    List<Material> findByIdInAndOrganizationId(List<Long> ids, Long orgId);
 }

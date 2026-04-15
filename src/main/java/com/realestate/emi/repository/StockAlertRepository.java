@@ -12,4 +12,6 @@ public interface StockAlertRepository extends JpaRepository<StockAlert, Long> {
     List<StockAlert> findByAcknowledgedFalseOrderByCreatedAtDesc();
 
     List<StockAlert> findByMaterialIdOrderByCreatedAtDesc(Long materialId);
+
+    List<StockAlert> findByAcknowledgedFalseAndMaterialOrganizationIdOrderByCreatedAtDesc(Long orgId);
 }

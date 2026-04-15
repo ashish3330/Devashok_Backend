@@ -22,6 +22,7 @@ import com.realestate.emi.exception.ServiceException;
 import com.realestate.emi.repository.DealRepository;
 import com.realestate.emi.repository.EmiScheduleRepository;
 import com.realestate.emi.repository.PaymentRepository;
+import com.realestate.emi.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
@@ -54,6 +55,7 @@ public class DownloadService {
     private final DealRepository dealRepository;
     private final PaymentRepository paymentRepository;
     private final EmiScheduleRepository emiScheduleRepository;
+    private final TenantContext tenantContext;
 
     public record FileDownload(byte[] content, String fileName) {}
 
@@ -63,6 +65,10 @@ public class DownloadService {
     public FileDownload getEmiReceipt(Long dealId, Long paymentId) {
         Deal deal = dealRepository.findByIdWithDetails(dealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", dealId));
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        if (deal.getOrganization() != null && !deal.getOrganization().getId().equals(orgId)) {
+            throw new ResourceNotFoundException("Deal", dealId);
+        }
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment", paymentId));
         if (!payment.getDeal().getId().equals(dealId)) {
@@ -78,6 +84,10 @@ public class DownloadService {
     public FileDownload getEmiScheduleExcel(Long dealId) {
         Deal deal = dealRepository.findByIdWithDetails(dealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", dealId));
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        if (deal.getOrganization() != null && !deal.getOrganization().getId().equals(orgId)) {
+            throw new ResourceNotFoundException("Deal", dealId);
+        }
         List<EmiSchedule> schedules = emiScheduleRepository.findByDealOrderByDueDateAsc(deal);
         String fileName = sanitize(deal.getCustomer().getFullName())
                 + "_" + sanitize(deal.getPropertyType().getName())

@@ -1,7 +1,11 @@
--- Seed default organization
+-- Seed organizations
 INSERT INTO organizations (name, code, address, phone, email, rera_number, is_active, created_at, updated_at)
 SELECT 'DevAshok Enclave', 'DEVASHOK', 'Plot No. 42, Sector 18, Navi Mumbai', '+919876543210', 'admin@devashokenclave.in', 'MH/NAVI/2021/00342', true, NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM organizations WHERE code = 'DEVASHOK');
+
+INSERT INTO organizations (name, code, address, phone, email, rera_number, is_active, created_at, updated_at)
+SELECT 'DevAshok County', 'COUNTY', 'Plot No. 88, Sector 22, Pune', '+919876500000', 'admin@devashokcounty.in', 'MH/PUNE/2024/00781', true, NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM organizations WHERE code = 'COUNTY');
 
 -- Seed construction-linked installment plan templates
 INSERT INTO installment_plan_templates (phase_name, phase_order, percentage_of_total, description, is_active, created_at, updated_at)

@@ -146,7 +146,8 @@ public class MaterialService {
 
     @Transactional(readOnly = true)
     public List<StockAlertResponse> getUnacknowledgedAlerts() {
-        return stockAlertRepository.findByAcknowledgedFalseOrderByCreatedAtDesc().stream()
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        return stockAlertRepository.findByAcknowledgedFalseAndMaterialOrganizationIdOrderByCreatedAtDesc(orgId).stream()
                 .map(alert -> StockAlertResponse.builder()
                         .id(alert.getId())
                         .materialId(alert.getMaterial().getId())
@@ -164,6 +165,11 @@ public class MaterialService {
     public void acknowledgeAlert(Long alertId, String username) {
         StockAlert alert = stockAlertRepository.findById(alertId)
                 .orElseThrow(() -> new ResourceNotFoundException("StockAlert", alertId));
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        if (alert.getMaterial() != null && alert.getMaterial().getOrganization() != null
+                && !alert.getMaterial().getOrganization().getId().equals(orgId)) {
+            throw new ResourceNotFoundException("StockAlert", alertId);
+        }
         alert.setAcknowledged(true);
         alert.setAcknowledgedBy(username);
         alert.setAcknowledgedAt(java.time.LocalDateTime.now());

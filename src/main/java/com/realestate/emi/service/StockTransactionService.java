@@ -48,16 +48,28 @@ public class StockTransactionService {
         Material material = materialRepository.findById(request.getMaterialId())
                 .orElseThrow(() -> new ResourceNotFoundException("Material", request.getMaterialId()));
 
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        if (material.getOrganization() != null && !material.getOrganization().getId().equals(orgId)) {
+            throw new ResourceNotFoundException("Material", request.getMaterialId());
+        }
+
         Deal deal = null;
         if (request.getDealId() != null) {
             deal = dealRepository.findById(request.getDealId())
                     .orElseThrow(() -> new ResourceNotFoundException("Deal", request.getDealId()));
+            if (deal.getOrganization() != null && !deal.getOrganization().getId().equals(orgId)) {
+                throw new ResourceNotFoundException("Deal", request.getDealId());
+            }
         }
 
         InstallmentPhase phase = null;
         if (request.getInstallmentPhaseId() != null) {
             phase = installmentPhaseRepository.findById(request.getInstallmentPhaseId())
                     .orElseThrow(() -> new ResourceNotFoundException("InstallmentPhase", request.getInstallmentPhaseId()));
+            if (phase.getDeal() != null && phase.getDeal().getOrganization() != null
+                    && !phase.getDeal().getOrganization().getId().equals(orgId)) {
+                throw new ResourceNotFoundException("InstallmentPhase", request.getInstallmentPhaseId());
+            }
         }
 
         BigDecimal unitCost = request.getUnitCost() != null ? request.getUnitCost() : material.getUnitCost();
@@ -83,7 +95,6 @@ public class StockTransactionService {
 
         materialRepository.save(material);
 
-        Long orgId = tenantContext.getCurrentOrganizationId();
         Organization org = organizationRepository.findById(orgId)
                 .orElseThrow(() -> new ServiceException("Organization not found", "ORG_NOT_FOUND"));
 

@@ -51,7 +51,8 @@ public class StaffService {
 
     @Transactional(readOnly = true)
     public List<StaffResponse> findByRole(Long roleId) {
-        return staffRepository.findByStaffRoleIdAndIsActiveTrue(roleId).stream()
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        return staffRepository.findByStaffRoleIdAndIsActiveTrueAndOrganizationId(roleId, orgId).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }

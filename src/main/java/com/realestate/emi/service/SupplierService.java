@@ -67,7 +67,7 @@ public class SupplierService {
                 .build();
 
         if (request.getMaterialIds() != null && !request.getMaterialIds().isEmpty()) {
-            List<Material> materials = materialRepository.findAllById(request.getMaterialIds());
+            List<Material> materials = materialRepository.findByIdInAndOrganizationId(request.getMaterialIds(), orgId);
             supplier.setMaterials(materials);
         }
 
@@ -93,7 +93,7 @@ public class SupplierService {
         supplier.setAddress(request.getAddress());
 
         if (request.getMaterialIds() != null) {
-            List<Material> materials = materialRepository.findAllById(request.getMaterialIds());
+            List<Material> materials = materialRepository.findByIdInAndOrganizationId(request.getMaterialIds(), orgId);
             supplier.setMaterials(materials);
         }
 

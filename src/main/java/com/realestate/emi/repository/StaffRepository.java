@@ -18,6 +18,8 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
 
     List<Staff> findByStaffRoleIdAndIsActiveTrue(Long roleId);
 
+    List<Staff> findByStaffRoleIdAndIsActiveTrueAndOrganizationId(Long roleId, Long orgId);
+
     @Query("SELECT COALESCE(SUM(s.monthlySalary), 0) FROM Staff s WHERE s.isActive = true")
     BigDecimal sumTotalMonthlySalary();
 

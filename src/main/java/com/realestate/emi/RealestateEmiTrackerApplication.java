@@ -51,6 +51,34 @@ public class RealestateEmiTrackerApplication {
                 userRepository.save(admin);
                 log.info("Default admin user created: username=admin, password=admin123");
             }
+
+            // Seed DevAshok County org + admin
+            Organization countyOrg = organizationRepository.findByCode("COUNTY")
+                    .orElseGet(() -> {
+                        Organization org = Organization.builder()
+                                .name("DevAshok County")
+                                .code("COUNTY")
+                                .address("Plot No. 88, Sector 22, Pune")
+                                .phone("+919876500000")
+                                .email("admin@devashokcounty.in")
+                                .reraNumber("MH/PUNE/2024/00781")
+                                .isActive(true)
+                                .build();
+                        organizationRepository.save(org);
+                        log.info("County organization created: {}", org.getName());
+                        return org;
+                    });
+
+            if (userRepository.findByUsername("countyadmin").isEmpty()) {
+                User countyAdmin = new User();
+                countyAdmin.setUsername("countyadmin");
+                countyAdmin.setPassword(passwordEncoder.encode("admin123"));
+                countyAdmin.setFullName("County Administrator");
+                countyAdmin.setRole(Role.ADMIN);
+                countyAdmin.setOrganization(countyOrg);
+                userRepository.save(countyAdmin);
+                log.info("County admin user created: username=countyadmin, password=admin123");
+            }
         };
     }
 }
