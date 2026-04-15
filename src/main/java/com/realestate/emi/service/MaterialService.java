@@ -4,6 +4,7 @@ import com.realestate.emi.dto.request.MaterialRequest;
 import com.realestate.emi.dto.response.MaterialResponse;
 import com.realestate.emi.dto.response.StockAlertResponse;
 import com.realestate.emi.entity.Material;
+import com.realestate.emi.entity.Notification;
 import com.realestate.emi.entity.Organization;
 import com.realestate.emi.entity.StockAlert;
 import com.realestate.emi.enums.AlertType;
@@ -13,6 +14,7 @@ import com.realestate.emi.exception.ServiceException;
 import com.realestate.emi.mapper.MaterialMapper;
 import com.realestate.emi.repository.MaterialRepository;
 import com.realestate.emi.repository.OrganizationRepository;
+import com.realestate.emi.repository.NotificationRepository;
 import com.realestate.emi.repository.StockAlertRepository;
 import com.realestate.emi.security.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,7 @@ public class MaterialService {
 
     private final MaterialRepository materialRepository;
     private final StockAlertRepository stockAlertRepository;
+    private final NotificationRepository notificationRepository;
     private final MaterialMapper materialMapper;
     private final TenantContext tenantContext;
     private final OrganizationRepository organizationRepository;
@@ -142,6 +145,31 @@ public class MaterialService {
         stockAlertRepository.save(alert);
         log.warn("Stock alert created: {} for material {} (qty: {})",
                 type, material.getName(), material.getCurrentQuantity());
+
+        // Create notification for admins + supervisors
+        if (material.getOrganization() != null) {
+            String notifType = type == AlertType.OUT_OF_STOCK ? "OUT_OF_STOCK" : "LOW_STOCK";
+            String severity = type == AlertType.OUT_OF_STOCK ? "critical" : "warning";
+            String title = (type == AlertType.OUT_OF_STOCK ? "Out of Stock" : "Low Stock") + " — " + material.getName();
+            String message = material.getCategory().name() + " | Current: " + material.getCurrentQuantity().intValue()
+                    + " " + material.getUnit().name() + " | Reorder: " + material.getReorderLevel().intValue();
+            String key = "STOCK-" + notifType + "-" + material.getId() + "-" + java.time.LocalDate.now();
+
+            if (!notificationRepository.existsByNotificationKey(key)) {
+                Notification notification = Notification.builder()
+                        .organization(material.getOrganization())
+                        .type(notifType)
+                        .severity(severity)
+                        .title(title)
+                        .message(message)
+                        .amount(BigDecimal.ZERO)
+                        .isRead(false)
+                        .notificationKey(key)
+                        .build();
+                notificationRepository.save(notification);
+                log.info("Stock notification created: [{}] {} for org {}", notifType, title, material.getOrganization().getCode());
+            }
+        }
     }
 
     @Transactional(readOnly = true)

@@ -2,10 +2,12 @@ package com.realestate.emi.service;
 
 import com.realestate.emi.dto.response.NotificationResponse;
 import com.realestate.emi.entity.InstallmentPhase;
+import com.realestate.emi.entity.Material;
 import com.realestate.emi.entity.Notification;
 import com.realestate.emi.entity.Organization;
 import com.realestate.emi.enums.PhaseStatus;
 import com.realestate.emi.repository.InstallmentPhaseRepository;
+import com.realestate.emi.repository.MaterialRepository;
 import com.realestate.emi.repository.NotificationRepository;
 import com.realestate.emi.repository.OrganizationRepository;
 import com.realestate.emi.security.TenantContext;
@@ -27,6 +29,7 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final InstallmentPhaseRepository installmentPhaseRepository;
+    private final MaterialRepository materialRepository;
     private final OrganizationRepository organizationRepository;
     private final TenantContext tenantContext;
 
@@ -154,6 +157,51 @@ public class NotificationService {
                 notificationRepository.save(notification);
                 log.info("Notification created: [{}] {} for org {}", type, title, org.getCode());
             }
+
+            // Low stock / out of stock notifications
+            generateStockNotifications(org, today);
+        }
+    }
+
+    private void generateStockNotifications(Organization org, LocalDate today) {
+        List<Material> lowStock = materialRepository.findLowStockMaterialsByOrg(org.getId());
+        List<Material> outOfStock = materialRepository.findOutOfStockMaterialsByOrg(org.getId());
+
+        for (Material m : outOfStock) {
+            String key = "STOCK-OUT-" + m.getId() + "-" + today;
+            if (notificationRepository.existsByNotificationKey(key)) continue;
+
+            Notification n = Notification.builder()
+                    .organization(org)
+                    .type("OUT_OF_STOCK")
+                    .severity("critical")
+                    .title("Out of Stock — " + m.getName())
+                    .message(m.getCategory().name() + " | Current: 0 " + m.getUnit().name() + " | Reorder level: " + m.getReorderLevel().intValue())
+                    .amount(java.math.BigDecimal.ZERO)
+                    .isRead(false)
+                    .notificationKey(key)
+                    .build();
+            notificationRepository.save(n);
+            log.warn("OUT OF STOCK notification: {} for org {}", m.getName(), org.getCode());
+        }
+
+        for (Material m : lowStock) {
+            if (m.getCurrentQuantity().compareTo(java.math.BigDecimal.ZERO) == 0) continue; // already covered above
+            String key = "STOCK-LOW-" + m.getId() + "-" + today;
+            if (notificationRepository.existsByNotificationKey(key)) continue;
+
+            Notification n = Notification.builder()
+                    .organization(org)
+                    .type("LOW_STOCK")
+                    .severity("warning")
+                    .title("Low Stock — " + m.getName())
+                    .message(m.getCategory().name() + " | Current: " + m.getCurrentQuantity().intValue() + " " + m.getUnit().name() + " | Reorder level: " + m.getReorderLevel().intValue())
+                    .amount(java.math.BigDecimal.ZERO)
+                    .isRead(false)
+                    .notificationKey(key)
+                    .build();
+            notificationRepository.save(n);
+            log.warn("LOW STOCK notification: {} ({} {}) for org {}", m.getName(), m.getCurrentQuantity().intValue(), m.getUnit(), org.getCode());
         }
     }
 }
