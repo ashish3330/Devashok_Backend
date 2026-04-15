@@ -44,6 +44,15 @@ public class AuthController {
             User user = userRepository.findByUsername(request.getUsername())
                     .orElseThrow(() -> new UnauthorizedException("Invalid username or password"));
 
+            // Validate user belongs to selected org
+            if (request.getOrganizationCode() != null && !request.getOrganizationCode().isBlank()) {
+                String userOrgCode = user.getOrganization() != null ? user.getOrganization().getCode() : null;
+                if (!request.getOrganizationCode().equalsIgnoreCase(userOrgCode)) {
+                    log.warn("User {} tried login to org {} but belongs to {}", request.getUsername(), request.getOrganizationCode(), userOrgCode);
+                    throw new UnauthorizedException("You do not belong to this organization");
+                }
+            }
+
             String token = jwtService.generateToken(user);
 
             LoginResponse response = LoginResponse.builder()

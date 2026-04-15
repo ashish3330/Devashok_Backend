@@ -9,7 +9,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/organizations")
@@ -18,7 +20,23 @@ public class OrganizationController {
 
     private final OrganizationRepository organizationRepository;
 
-    // PUBLIC - no auth needed, used by login page
+    // PUBLIC - list all active organizations for the login page
+    @GetMapping("/public")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listAll() {
+        List<Map<String, Object>> orgs = organizationRepository.findAll().stream()
+                .filter(Organization::getIsActive)
+                .map(org -> Map.<String, Object>of(
+                    "id", org.getId(),
+                    "name", org.getName(),
+                    "code", org.getCode(),
+                    "address", org.getAddress() != null ? org.getAddress() : "",
+                    "reraNumber", org.getReraNumber() != null ? org.getReraNumber() : ""
+                ))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.success(orgs, "Organizations retrieved"));
+    }
+
+    // PUBLIC - get single org by code
     @GetMapping("/public/{code}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getByCode(@PathVariable String code) {
         Organization org = organizationRepository.findByCode(code.toUpperCase())
