@@ -126,13 +126,16 @@ public class SalaryService {
             throw new ServiceException("Salary is already fully paid", "SALARY_ALREADY_PAID");
         }
 
+        // Reverse old bonus/deductions to get base net before reapplying
+        BigDecimal baseNet = record.getNetSalary()
+                .subtract(record.getBonus() != null ? record.getBonus() : BigDecimal.ZERO)
+                .add(record.getDeductions() != null ? record.getDeductions() : BigDecimal.ZERO);
+
         record.setBonus(request.getBonus() != null ? request.getBonus() : BigDecimal.ZERO);
         record.setDeductions(request.getDeductions() != null ? request.getDeductions() : BigDecimal.ZERO);
 
-        // Recalculate net with bonus/deductions
-        BigDecimal netSalary = record.getNetSalary()
-                .add(record.getBonus())
-                .subtract(record.getDeductions());
+        // Recalculate net with new bonus/deductions
+        BigDecimal netSalary = baseNet.add(record.getBonus()).subtract(record.getDeductions());
         record.setNetSalary(netSalary);
 
         BigDecimal newPaid = record.getAmountPaid().add(request.getAmount());
