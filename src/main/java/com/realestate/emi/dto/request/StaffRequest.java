@@ -1,5 +1,6 @@
 package com.realestate.emi.dto.request;
 
+import com.realestate.emi.enums.EmploymentType;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -37,4 +38,18 @@ public class StaffRequest {
     private String ifscCode;
 
     private String aadharNumber;
+
+    private String panNumber;
+
+    private String department;
+
+    private String designation;
+
+    private String emergencyContactName;
+
+    private String emergencyContactPhone;
+
+    private EmploymentType employmentType;
+
+    private String bloodGroup;
 }

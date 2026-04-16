@@ -27,4 +27,9 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     BigDecimal sumTotalMonthlySalaryByOrg(@org.springframework.data.repository.query.Param("orgId") Long orgId);
 
     Optional<Staff> findByUserId(Long userId);
+
+    @Query("SELECT s.employeeCode FROM Staff s WHERE s.organization.id = :orgId AND s.employeeCode IS NOT NULL ORDER BY s.employeeCode DESC LIMIT 1")
+    String findMaxEmployeeCodeByOrg(@org.springframework.data.repository.query.Param("orgId") Long orgId);
+
+    List<Staff> findByOrganizationIdOrderByFullNameAsc(Long orgId);
 }

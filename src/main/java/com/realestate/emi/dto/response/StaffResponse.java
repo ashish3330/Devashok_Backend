@@ -1,5 +1,6 @@
 package com.realestate.emi.dto.response;
 
+import com.realestate.emi.enums.EmploymentType;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -13,6 +14,7 @@ import java.time.LocalDate;
 public class StaffResponse {
 
     private Long id;
+    private String employeeCode;
     private String fullName;
     private String phone;
     private String email;
@@ -25,5 +27,13 @@ public class StaffResponse {
     private String bankAccountNumber;
     private String ifscCode;
     private String aadharNumber;
+    private String panNumber;
+    private String department;
+    private String designation;
+    private String emergencyContactName;
+    private String emergencyContactPhone;
+    private EmploymentType employmentType;
+    private String bloodGroup;
+    private BigDecimal outstandingAdvance;
     private Boolean isActive;
 }

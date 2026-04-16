@@ -1,5 +1,6 @@
 package com.realestate.emi.entity;
 
+import com.realestate.emi.enums.EmploymentType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -18,6 +19,9 @@ public class Staff extends BaseAuditEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "employee_code", unique = true, length = 20)
+    private String employeeCode;
 
     @Column(name = "full_name", nullable = false)
     private String fullName;
@@ -52,6 +56,28 @@ public class Staff extends BaseAuditEntity {
 
     @Column(name = "aadhar_number", length = 12)
     private String aadharNumber;
+
+    @Column(name = "pan_number", length = 10)
+    private String panNumber;
+
+    @Column(name = "department", length = 100)
+    private String department;
+
+    @Column(name = "designation", length = 100)
+    private String designation;
+
+    @Column(name = "emergency_contact_name", length = 100)
+    private String emergencyContactName;
+
+    @Column(name = "emergency_contact_phone", length = 15)
+    private String emergencyContactPhone;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "employment_type", length = 20)
+    private EmploymentType employmentType;
+
+    @Column(name = "blood_group", length = 20)
+    private String bloodGroup;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")

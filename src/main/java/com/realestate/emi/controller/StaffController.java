@@ -7,11 +7,11 @@ import com.realestate.emi.service.StaffService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Slf4j
@@ -58,5 +58,21 @@ public class StaffController {
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable Long id) {
         staffService.deactivate(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Staff deactivated successfully"));
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportStaffExcel() {
+        byte[] excelBytes = staffService.exportStaffExcel();
+        MediaType xlsx = MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentDisposition(
+                ContentDisposition.attachment()
+                        .filename("Staff_Directory.xlsx", StandardCharsets.UTF_8)
+                        .build());
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(xlsx)
+                .body(excelBytes);
     }
 }
