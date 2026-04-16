@@ -18,7 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/staff")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','SUPERVISOR')")
 public class StaffController {
 
     private final StaffService staffService;
@@ -39,6 +39,7 @@ public class StaffController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<StaffResponse>> create(@Valid @RequestBody StaffRequest request) {
         StaffResponse created = staffService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -46,6 +47,7 @@ public class StaffController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<StaffResponse>> update(
             @PathVariable Long id, @Valid @RequestBody StaffRequest request) {
         return ResponseEntity.ok(ApiResponse.success(staffService.update(id, request), "Staff updated successfully"));
