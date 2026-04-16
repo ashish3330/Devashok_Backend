@@ -10,12 +10,15 @@ import com.realestate.emi.entity.Organization;
 import com.realestate.emi.repository.CustomerRepository;
 import com.realestate.emi.repository.OrganizationRepository;
 import com.realestate.emi.security.TenantContext;
+import com.realestate.emi.specification.DateRangeSpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -31,9 +34,18 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public List<CustomerResponse> findAll() {
-        log.debug("Fetching all customers");
+        return findAll(null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CustomerResponse> findAll(LocalDate from, LocalDate to) {
+        log.debug("Fetching all customers with date range from={} to={}", from, to);
         Long orgId = tenantContext.getCurrentOrganizationId();
-        return customerRepository.findByOrganizationIdOrderByFullNameAsc(orgId).stream()
+
+        Specification<Customer> spec = Specification.where(DateRangeSpec.<Customer>orgEquals("organization", orgId))
+                .and(DateRangeSpec.dateRange("createdAt", from, to));
+
+        return customerRepository.findAll(spec).stream()
                 .map(customer -> {
                     CustomerResponse resp = customerMapper.toResponse(customer);
                     maskSensitiveFields(resp);

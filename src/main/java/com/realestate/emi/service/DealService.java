@@ -16,13 +16,16 @@ import com.realestate.emi.mapper.InstallmentPhaseMapper;
 import com.realestate.emi.mapper.PaymentMapper;
 import com.realestate.emi.repository.*;
 import com.realestate.emi.security.TenantContext;
+import com.realestate.emi.specification.DateRangeSpec;
 import com.realestate.emi.util.EmiCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -217,9 +220,18 @@ public class DealService {
 
     @Transactional(readOnly = true)
     public List<DealSummaryResponse> findAll() {
-        log.debug("Fetching all deals");
+        return findAll(null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DealSummaryResponse> findAll(LocalDate from, LocalDate to) {
+        log.debug("Fetching all deals with date range from={} to={}", from, to);
         Long orgId = tenantContext.getCurrentOrganizationId();
-        List<Deal> deals = dealRepository.findAllByOrganization(orgId);
+
+        Specification<Deal> spec = Specification.where(DateRangeSpec.<Deal>orgEquals("organization", orgId))
+                .and(DateRangeSpec.dateRange("dealDate", from, to));
+
+        List<Deal> deals = dealRepository.findAll(spec);
         return deals.stream()
                 .map(deal -> {
                     DealSummaryResponse summary = dealMapper.toSummaryResponse(deal);

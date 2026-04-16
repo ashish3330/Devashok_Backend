@@ -1,6 +1,7 @@
 package com.realestate.emi.service;
 
 import com.realestate.emi.dto.response.*;
+import com.realestate.emi.entity.Deal;
 import com.realestate.emi.entity.EmiSchedule;
 import com.realestate.emi.entity.SalaryRecord;
 import com.realestate.emi.entity.Staff;
@@ -11,8 +12,10 @@ import com.realestate.emi.enums.MaterialCategory;
 import com.realestate.emi.enums.TransactionType;
 import com.realestate.emi.repository.*;
 import com.realestate.emi.security.TenantContext;
+import com.realestate.emi.specification.DateRangeSpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,16 +51,47 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public DashboardResponse getSummary() {
+        return getSummary(null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public DashboardResponse getSummary(LocalDate from, LocalDate to) {
         Long orgId = tenantContext.getCurrentOrganizationId();
-        long active = dealRepository.countByStatusAndOrganizationId(DealStatus.ACTIVE, orgId);
-        long completed = dealRepository.countByStatusAndOrganizationId(DealStatus.COMPLETED, orgId);
-        long defaulted = dealRepository.countByStatusAndOrganizationId(DealStatus.DEFAULTED, orgId);
+
+        if (from == null && to == null) {
+            long active = dealRepository.countByStatusAndOrganizationId(DealStatus.ACTIVE, orgId);
+            long completed = dealRepository.countByStatusAndOrganizationId(DealStatus.COMPLETED, orgId);
+            long defaulted = dealRepository.countByStatusAndOrganizationId(DealStatus.DEFAULTED, orgId);
+            return DashboardResponse.builder()
+                    .totalDeals(active + completed + defaulted)
+                    .activeDeals(active)
+                    .completedDeals(completed)
+                    .defaultedDeals(defaulted)
+                    .totalDealAmount(dealRepository.sumTotalPayableAfterDepositByOrg(orgId))
+                    .totalReceived(paymentRepository.sumAllPaymentsByOrg(orgId))
+                    .totalOutstanding(emiScheduleRepository.sumTotalOutstandingByOrg(orgId))
+                    .build();
+        }
+
+        // Date-range filtered summary: filter deals by dealDate, then compute in memory
+        Specification<Deal> dealSpec = Specification.where(DateRangeSpec.<Deal>orgEquals("organization", orgId))
+                .and(DateRangeSpec.dateRange("dealDate", from, to));
+        List<Deal> deals = dealRepository.findAll(dealSpec);
+
+        long active = deals.stream().filter(d -> d.getStatus() == DealStatus.ACTIVE).count();
+        long completed = deals.stream().filter(d -> d.getStatus() == DealStatus.COMPLETED).count();
+        long defaulted = deals.stream().filter(d -> d.getStatus() == DealStatus.DEFAULTED).count();
+        BigDecimal totalDealAmount = deals.stream()
+                .map(d -> d.getTotalPayableAfterDeposit() != null ? d.getTotalPayableAfterDeposit() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // For received/outstanding, still use org-level totals (payment filtering by deal date range is complex)
         return DashboardResponse.builder()
                 .totalDeals(active + completed + defaulted)
                 .activeDeals(active)
                 .completedDeals(completed)
                 .defaultedDeals(defaulted)
-                .totalDealAmount(dealRepository.sumTotalPayableAfterDepositByOrg(orgId))
+                .totalDealAmount(totalDealAmount)
                 .totalReceived(paymentRepository.sumAllPaymentsByOrg(orgId))
                 .totalOutstanding(emiScheduleRepository.sumTotalOutstandingByOrg(orgId))
                 .build();

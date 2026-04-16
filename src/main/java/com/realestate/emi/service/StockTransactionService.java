@@ -20,14 +20,17 @@ import com.realestate.emi.repository.StockTransactionRepository;
 import com.realestate.emi.repository.SupplierRepository;
 import com.realestate.emi.security.TenantContext;
 import com.realestate.emi.security.CustomPrincipal;
+import com.realestate.emi.specification.DateRangeSpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -165,8 +168,19 @@ public class StockTransactionService {
 
     @Transactional(readOnly = true)
     public List<StockTransactionResponse> getByMaterial(Long materialId) {
-        return transactionMapper.toResponseList(
-                transactionRepository.findByMaterialIdOrderByTransactionDateDesc(materialId));
+        return getByMaterial(materialId, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StockTransactionResponse> getByMaterial(Long materialId, LocalDate from, LocalDate to) {
+        if (from == null && to == null) {
+            return transactionMapper.toResponseList(
+                    transactionRepository.findByMaterialIdOrderByTransactionDateDesc(materialId));
+        }
+        Specification<StockTransaction> spec = Specification
+                .where((Specification<StockTransaction>) (root, query, cb) -> cb.equal(root.get("material").get("id"), materialId))
+                .and(DateRangeSpec.dateRange("transactionDate", from, to));
+        return transactionMapper.toResponseList(transactionRepository.findAll(spec));
     }
 
     @Transactional(readOnly = true)
@@ -177,8 +191,19 @@ public class StockTransactionService {
 
     @Transactional(readOnly = true)
     public List<StockTransactionResponse> getBySupplier(Long supplierId) {
-        return transactionMapper.toResponseList(
-                transactionRepository.findBySupplierIdOrderByTransactionDateDesc(supplierId));
+        return getBySupplier(supplierId, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StockTransactionResponse> getBySupplier(Long supplierId, LocalDate from, LocalDate to) {
+        if (from == null && to == null) {
+            return transactionMapper.toResponseList(
+                    transactionRepository.findBySupplierIdOrderByTransactionDateDesc(supplierId));
+        }
+        Specification<StockTransaction> spec = Specification
+                .where((Specification<StockTransaction>) (root, query, cb) -> cb.equal(root.get("supplier").get("id"), supplierId))
+                .and(DateRangeSpec.dateRange("transactionDate", from, to));
+        return transactionMapper.toResponseList(transactionRepository.findAll(spec));
     }
 
     private String getUsername() {

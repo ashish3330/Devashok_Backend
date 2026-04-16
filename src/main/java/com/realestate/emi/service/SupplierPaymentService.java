@@ -13,8 +13,10 @@ import com.realestate.emi.repository.StockTransactionRepository;
 import com.realestate.emi.repository.SupplierPaymentRepository;
 import com.realestate.emi.repository.SupplierRepository;
 import com.realestate.emi.security.TenantContext;
+import com.realestate.emi.specification.DateRangeSpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -76,6 +78,11 @@ public class SupplierPaymentService {
 
     @Transactional(readOnly = true)
     public List<SupplierPaymentResponse> getPaymentsBySupplier(Long supplierId) {
+        return getPaymentsBySupplier(supplierId, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SupplierPaymentResponse> getPaymentsBySupplier(Long supplierId, LocalDate from, LocalDate to) {
         Long orgId = tenantContext.getCurrentOrganizationId();
 
         Supplier supplier = supplierRepository.findById(supplierId)
@@ -85,7 +92,19 @@ public class SupplierPaymentService {
             throw new ResourceNotFoundException("Supplier", supplierId);
         }
 
-        return supplierPaymentRepository.findBySupplierIdAndOrganizationIdOrderByPaymentDateDesc(supplierId, orgId)
+        if (from == null && to == null) {
+            return supplierPaymentRepository.findBySupplierIdAndOrganizationIdOrderByPaymentDateDesc(supplierId, orgId)
+                    .stream()
+                    .map(this::toResponse)
+                    .toList();
+        }
+
+        Specification<SupplierPayment> spec = Specification
+                .where(DateRangeSpec.<SupplierPayment>orgEquals("organization", orgId))
+                .and((root, query, cb) -> cb.equal(root.get("supplier").get("id"), supplierId))
+                .and(DateRangeSpec.dateRange("paymentDate", from, to));
+
+        return supplierPaymentRepository.findAll(spec)
                 .stream()
                 .map(this::toResponse)
                 .toList();

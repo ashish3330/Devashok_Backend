@@ -3,6 +3,7 @@ package com.realestate.emi.repository;
 import com.realestate.emi.entity.Deal;
 import com.realestate.emi.enums.DealStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -12,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface DealRepository extends JpaRepository<Deal, Long> {
+public interface DealRepository extends JpaRepository<Deal, Long>, JpaSpecificationExecutor<Deal> {
 
     @Query("SELECT d FROM Deal d JOIN FETCH d.customer JOIN FETCH d.propertyType ORDER BY d.createdAt DESC")
     List<Deal> findAllWithDetails();

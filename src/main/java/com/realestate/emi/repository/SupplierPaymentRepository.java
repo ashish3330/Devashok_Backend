@@ -2,6 +2,7 @@ package com.realestate.emi.repository;
 
 import com.realestate.emi.entity.SupplierPayment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -10,7 +11,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @Repository
-public interface SupplierPaymentRepository extends JpaRepository<SupplierPayment, Long> {
+public interface SupplierPaymentRepository extends JpaRepository<SupplierPayment, Long>, JpaSpecificationExecutor<SupplierPayment> {
 
     List<SupplierPayment> findBySupplierIdAndOrganizationIdOrderByPaymentDateDesc(Long supplierId, Long orgId);
 

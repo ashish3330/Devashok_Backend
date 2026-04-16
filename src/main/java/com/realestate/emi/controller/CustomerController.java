@@ -7,11 +7,13 @@ import com.realestate.emi.service.CustomerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -24,8 +26,10 @@ public class CustomerController {
     private final CustomerService customerService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<CustomerResponse>>> findAll() {
-        List<CustomerResponse> customers = customerService.findAll();
+    public ResponseEntity<ApiResponse<List<CustomerResponse>>> findAll(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        List<CustomerResponse> customers = customerService.findAll(from, to);
         return ResponseEntity.ok(ApiResponse.success(customers, "Customers retrieved successfully"));
     }
 

@@ -8,6 +8,7 @@ import com.realestate.emi.service.StockTransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -38,9 +40,12 @@ public class StockTransactionController {
     }
 
     @GetMapping("/material/{materialId}")
-    public ResponseEntity<ApiResponse<List<StockTransactionResponse>>> getByMaterial(@PathVariable Long materialId) {
+    public ResponseEntity<ApiResponse<List<StockTransactionResponse>>> getByMaterial(
+            @PathVariable Long materialId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return ResponseEntity.ok(ApiResponse.success(
-                transactionService.getByMaterial(materialId), "Transactions retrieved successfully"));
+                transactionService.getByMaterial(materialId, from, to), "Transactions retrieved successfully"));
     }
 
     @GetMapping("/deal/{dealId}")
@@ -50,9 +55,12 @@ public class StockTransactionController {
     }
 
     @GetMapping("/supplier/{supplierId}")
-    public ResponseEntity<ApiResponse<List<StockTransactionResponse>>> getBySupplier(@PathVariable Long supplierId) {
+    public ResponseEntity<ApiResponse<List<StockTransactionResponse>>> getBySupplier(
+            @PathVariable Long supplierId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return ResponseEntity.ok(ApiResponse.success(
-                transactionService.getBySupplier(supplierId), "Transactions retrieved successfully"));
+                transactionService.getBySupplier(supplierId, from, to), "Transactions retrieved successfully"));
     }
 
     @GetMapping("/{transactionId}/receipt")

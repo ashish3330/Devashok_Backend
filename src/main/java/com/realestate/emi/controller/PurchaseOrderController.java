@@ -9,11 +9,13 @@ import com.realestate.emi.service.PurchaseOrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -35,9 +37,11 @@ public class PurchaseOrderController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<PurchaseOrderResponse>>> findAll(
-            @RequestParam(required = false) PurchaseOrderStatus status) {
+            @RequestParam(required = false) PurchaseOrderStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return ResponseEntity.ok(ApiResponse.success(
-                poService.findAll(status), "Purchase orders retrieved successfully"));
+                poService.findAll(status, from, to), "Purchase orders retrieved successfully"));
     }
 
     @GetMapping("/{id}")

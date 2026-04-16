@@ -20,8 +20,10 @@ import com.realestate.emi.repository.PurchaseOrderRepository;
 import com.realestate.emi.repository.StockTransactionRepository;
 import com.realestate.emi.repository.SupplierRepository;
 import com.realestate.emi.security.TenantContext;
+import com.realestate.emi.specification.DateRangeSpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -100,14 +102,32 @@ public class PurchaseOrderService {
 
     @Transactional(readOnly = true)
     public List<PurchaseOrderResponse> findAll(PurchaseOrderStatus status) {
+        return findAll(status, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PurchaseOrderResponse> findAll(PurchaseOrderStatus status, LocalDate from, LocalDate to) {
         Long orgId = tenantContext.getCurrentOrganizationId();
-        List<PurchaseOrder> orders;
-        if (status != null) {
-            orders = poRepository.findByStatusAndOrganizationId(status, orgId);
-        } else {
-            orders = poRepository.findByOrganizationIdOrderByOrderDateDesc(orgId);
+
+        if (from == null && to == null) {
+            List<PurchaseOrder> orders;
+            if (status != null) {
+                orders = poRepository.findByStatusAndOrganizationId(status, orgId);
+            } else {
+                orders = poRepository.findByOrganizationIdOrderByOrderDateDesc(orgId);
+            }
+            return orders.stream().map(this::toResponse).collect(Collectors.toList());
         }
-        return orders.stream().map(this::toResponse).collect(Collectors.toList());
+
+        Specification<PurchaseOrder> spec = Specification
+                .where(DateRangeSpec.<PurchaseOrder>orgEquals("organization", orgId))
+                .and(DateRangeSpec.dateRange("orderDate", from, to));
+
+        if (status != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
+        }
+
+        return poRepository.findAll(spec).stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)

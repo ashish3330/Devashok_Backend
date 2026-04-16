@@ -7,11 +7,13 @@ import com.realestate.emi.service.StaffService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -24,8 +26,10 @@ public class StaffController {
     private final StaffService staffService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<StaffResponse>>> findAll() {
-        return ResponseEntity.ok(ApiResponse.success(staffService.findAll(), "Staff retrieved successfully"));
+    public ResponseEntity<ApiResponse<List<StaffResponse>>> findAll(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(ApiResponse.success(staffService.findAll(from, to), "Staff retrieved successfully"));
     }
 
     @GetMapping("/{id}")

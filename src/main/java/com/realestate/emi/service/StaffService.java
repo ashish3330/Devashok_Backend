@@ -12,8 +12,10 @@ import com.realestate.emi.repository.SalaryAdvanceRepository;
 import com.realestate.emi.repository.StaffRepository;
 import com.realestate.emi.repository.StaffRoleRepository;
 import com.realestate.emi.security.TenantContext;
+import com.realestate.emi.specification.DateRangeSpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.jpa.domain.Specification;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.*;
@@ -43,8 +45,18 @@ public class StaffService {
 
     @Transactional(readOnly = true)
     public List<StaffResponse> findAll() {
+        return findAll(null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StaffResponse> findAll(LocalDate from, LocalDate to) {
         Long orgId = tenantContext.getCurrentOrganizationId();
-        return staffRepository.findByOrganizationIdAndIsActiveTrueOrderByFullNameAsc(orgId).stream()
+
+        Specification<Staff> spec = Specification.where(DateRangeSpec.<Staff>orgEquals("organization", orgId))
+                .and((root, query, cb) -> cb.isTrue(root.get("isActive")))
+                .and(DateRangeSpec.dateRange("joiningDate", from, to));
+
+        return staffRepository.findAll(spec).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }

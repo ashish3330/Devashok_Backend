@@ -10,6 +10,7 @@ import com.realestate.emi.service.DownloadService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -40,8 +42,10 @@ public class DealController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<DealSummaryResponse>>> findAll() {
-        List<DealSummaryResponse> deals = dealService.findAll();
+    public ResponseEntity<ApiResponse<List<DealSummaryResponse>>> findAll(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        List<DealSummaryResponse> deals = dealService.findAll(from, to);
         return ResponseEntity.ok(ApiResponse.success(deals, "Deals retrieved successfully"));
     }
 

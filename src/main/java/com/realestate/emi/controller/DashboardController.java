@@ -11,11 +11,12 @@ import com.realestate.emi.service.DashboardService;
 import com.realestate.emi.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-
+import java.time.LocalDate;
 import java.time.YearMonth;
 
 @Slf4j
@@ -29,8 +30,10 @@ public class DashboardController {
     private final NotificationService notificationService;
 
     @GetMapping("/summary")
-    public ResponseEntity<ApiResponse<DashboardResponse>> getSummary() {
-        DashboardResponse summary = dashboardService.getSummary();
+    public ResponseEntity<ApiResponse<DashboardResponse>> getSummary(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        DashboardResponse summary = dashboardService.getSummary(from, to);
         return ResponseEntity.ok(ApiResponse.success(summary, "Dashboard summary retrieved successfully"));
     }
 
