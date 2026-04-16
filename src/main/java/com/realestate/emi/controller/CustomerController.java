@@ -18,20 +18,18 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/customers")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
+@PreAuthorize("hasRole('ADMIN')")
 public class CustomerController {
 
     private final CustomerService customerService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<ApiResponse<List<CustomerResponse>>> findAll() {
         List<CustomerResponse> customers = customerService.findAll();
         return ResponseEntity.ok(ApiResponse.success(customers, "Customers retrieved successfully"));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<ApiResponse<CustomerResponse>> findById(@PathVariable Long id) {
         CustomerResponse customer = customerService.findById(id);
         return ResponseEntity.ok(ApiResponse.success(customer, "Customer retrieved successfully"));

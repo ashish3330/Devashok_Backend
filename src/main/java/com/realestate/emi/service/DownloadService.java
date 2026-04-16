@@ -24,6 +24,7 @@ import com.realestate.emi.entity.Staff;
 import com.realestate.emi.entity.StockTransaction;
 import com.realestate.emi.entity.Supplier;
 import com.realestate.emi.enums.AttendanceStatus;
+import com.realestate.emi.enums.SalaryStatus;
 import com.realestate.emi.exception.ResourceNotFoundException;
 import com.realestate.emi.exception.ServiceException;
 import com.realestate.emi.repository.AttendanceRepository;
@@ -128,6 +129,9 @@ public class DownloadService {
         if (record.getStaff().getOrganization() != null
                 && !record.getStaff().getOrganization().getId().equals(orgId)) {
             throw new ResourceNotFoundException("SalaryRecord", salaryId);
+        }
+        if (record.getStatus() == SalaryStatus.PENDING || record.getStatus() == SalaryStatus.HOLD) {
+            throw new ServiceException("Salary slip can only be downloaded after payment has been made", "SALARY_NOT_PAID");
         }
         String monthName = Month.of(record.getMonth()).getDisplayName(TextStyle.FULL, Locale.ENGLISH);
         String fileName = sanitize(record.getStaff().getFullName())

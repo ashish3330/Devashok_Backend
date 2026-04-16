@@ -25,7 +25,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/deals")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
+@PreAuthorize("hasRole('ADMIN')")
 public class DealController {
 
     private final DealService dealService;
@@ -40,14 +40,12 @@ public class DealController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<ApiResponse<List<DealSummaryResponse>>> findAll() {
         List<DealSummaryResponse> deals = dealService.findAll();
         return ResponseEntity.ok(ApiResponse.success(deals, "Deals retrieved successfully"));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<ApiResponse<DealDetailResponse>> findById(@PathVariable Long id) {
         DealDetailResponse deal = dealService.findById(id);
         return ResponseEntity.ok(ApiResponse.success(deal, "Deal retrieved successfully"));
@@ -62,7 +60,6 @@ public class DealController {
     }
 
     @GetMapping("/{id}/schedule/download")
-    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<byte[]> downloadSchedule(@PathVariable Long id) {
         DownloadService.FileDownload file = downloadService.getEmiScheduleExcel(id);
         MediaType xlsx = MediaType.parseMediaType(

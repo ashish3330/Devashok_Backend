@@ -18,7 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/staff/holidays")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','SUPERVISOR')")
 public class HolidayController {
 
     private final HolidayService holidayService;
@@ -34,6 +34,7 @@ public class HolidayController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<HolidayResponse>> create(@Valid @RequestBody HolidayRequest request) {
         HolidayResponse created = holidayService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -41,6 +42,7 @@ public class HolidayController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<HolidayResponse>> update(
             @PathVariable Long id, @Valid @RequestBody HolidayRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
@@ -48,6 +50,7 @@ public class HolidayController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         holidayService.delete(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Holiday deleted successfully"));

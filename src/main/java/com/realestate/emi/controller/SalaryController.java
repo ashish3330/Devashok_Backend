@@ -20,7 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/staff/salary")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','SUPERVISOR')")
 public class SalaryController {
 
     private final SalaryService salaryService;
@@ -64,7 +64,6 @@ public class SalaryController {
     }
 
     @GetMapping("/export")
-    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<byte[]> exportPayroll(@RequestParam int year, @RequestParam int month) {
         List<SalaryRecord> records = salaryService.getSalaryRecordsByMonth(year, month);
         DownloadService.FileDownload file = downloadService.getPayrollExcel(year, month, records);
@@ -82,10 +81,8 @@ public class SalaryController {
     }
 
     @GetMapping("/{salaryId}/slip")
-    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<byte[]> downloadSalarySlip(@PathVariable Long salaryId) {
-        SalaryRecord record = salaryService.getSalaryRecordById(salaryId);
-        DownloadService.FileDownload file = downloadService.getSalarySlipPdf(record);
+        DownloadService.FileDownload file = downloadService.getSalarySlip(salaryId);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentDisposition(
                 ContentDisposition.attachment()

@@ -23,7 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/deals/{dealId}/payments")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
+@PreAuthorize("hasRole('ADMIN')")
 public class PaymentController {
 
     private final PaymentService paymentService;
@@ -49,7 +49,6 @@ public class PaymentController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<ApiResponse<List<PaymentResponse>>> getPaymentsByDeal(
             @PathVariable Long dealId) {
         List<PaymentResponse> payments = paymentService.getPaymentsByDeal(dealId);
@@ -57,7 +56,6 @@ public class PaymentController {
     }
 
     @GetMapping("/{paymentId}/receipt")
-    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<byte[]> downloadReceipt(
             @PathVariable Long dealId,
             @PathVariable Long paymentId) {

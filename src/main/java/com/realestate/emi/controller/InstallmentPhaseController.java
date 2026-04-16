@@ -25,7 +25,6 @@ public class InstallmentPhaseController {
     private final InstallmentPhaseService installmentPhaseService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<ApiResponse<List<InstallmentPhaseResponse>>> getPhases(@PathVariable Long dealId) {
         List<InstallmentPhaseResponse> phases = installmentPhaseService.getPhasesByDeal(dealId);
         return ResponseEntity.ok(ApiResponse.success(phases, "Installment phases retrieved successfully"));

@@ -22,7 +22,7 @@ import java.time.YearMonth;
 @RestController
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
+@PreAuthorize("hasRole('ADMIN')")
 public class DashboardController {
 
     private final DashboardService dashboardService;
@@ -65,18 +65,21 @@ public class DashboardController {
     }
 
     @GetMapping("/notifications")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPERVISOR')")
     public ResponseEntity<ApiResponse<NotificationResponse>> getNotifications() {
         NotificationResponse response = notificationService.getNotifications();
         return ResponseEntity.ok(ApiResponse.success(response, "Notifications retrieved"));
     }
 
     @PutMapping("/notifications/{id}/read")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPERVISOR')")
     public ResponseEntity<ApiResponse<Void>> markNotificationRead(@PathVariable Long id) {
         notificationService.markAsRead(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Notification marked as read"));
     }
 
     @PutMapping("/notifications/read-all")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPERVISOR')")
     public ResponseEntity<ApiResponse<Void>> markAllNotificationsRead() {
         notificationService.markAllAsRead();
         return ResponseEntity.ok(ApiResponse.success(null, "All notifications marked as read"));
