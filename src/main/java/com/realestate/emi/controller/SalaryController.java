@@ -3,16 +3,13 @@ package com.realestate.emi.controller;
 import com.realestate.emi.dto.request.SalaryPaymentRequest;
 import com.realestate.emi.dto.response.ApiResponse;
 import com.realestate.emi.dto.response.SalaryRecordResponse;
+import com.realestate.emi.entity.SalaryRecord;
 import com.realestate.emi.service.DownloadService;
 import com.realestate.emi.service.SalaryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -66,10 +63,29 @@ public class SalaryController {
                 salaryService.getPendingSalaries(), "Pending salary records retrieved successfully"));
     }
 
+    @GetMapping("/export")
+    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
+    public ResponseEntity<byte[]> exportPayroll(@RequestParam int year, @RequestParam int month) {
+        List<SalaryRecord> records = salaryService.getSalaryRecordsByMonth(year, month);
+        DownloadService.FileDownload file = downloadService.getPayrollExcel(year, month, records);
+        MediaType xlsx = MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentDisposition(
+                ContentDisposition.attachment()
+                        .filename(file.fileName(), StandardCharsets.UTF_8)
+                        .build());
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(xlsx)
+                .body(file.content());
+    }
+
     @GetMapping("/{salaryId}/slip")
     @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
     public ResponseEntity<byte[]> downloadSalarySlip(@PathVariable Long salaryId) {
-        DownloadService.FileDownload file = downloadService.getSalarySlip(salaryId);
+        SalaryRecord record = salaryService.getSalaryRecordById(salaryId);
+        DownloadService.FileDownload file = downloadService.getSalarySlipPdf(record);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentDisposition(
                 ContentDisposition.attachment()

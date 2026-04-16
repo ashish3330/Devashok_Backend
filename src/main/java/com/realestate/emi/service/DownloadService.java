@@ -160,6 +160,177 @@ public class DownloadService {
         return new FileDownload(buildAttendanceExcel(org, activeStaff, year, month), fileName);
     }
 
+    // ─── Payroll Excel ────────────────────────────────────────────────────────
+
+    public FileDownload getPayrollExcel(int year, int month, List<SalaryRecord> records) {
+        String monthName = Month.of(month).getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+        String fileName = "Payroll_" + monthName + "_" + year + ".xlsx";
+        return new FileDownload(buildPayrollExcel(year, month, records), fileName);
+    }
+
+    private byte[] buildPayrollExcel(int year, int month, List<SalaryRecord> records) {
+        try (XSSFWorkbook wb = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            String monthName = Month.of(month).getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+            XSSFSheet sheet = wb.createSheet("Payroll " + monthName + " " + year);
+
+            int[] colWidths = {
+                3000, 6000, 4000, 4000, 3000, 3000, 3000, 3000, 3000,
+                4000, 4000, 3500, 4000, 4000, 4500,
+                3500, 3500, 3500, 4000, 4000, 4000,
+                5000, 4500, 4500, 4000
+            };
+            for (int i = 0; i < colWidths.length; i++) sheet.setColumnWidth(i, colWidths[i]);
+
+            XSSFCellStyle titleStyle = makeTitleStyle(wb);
+            XSSFCellStyle headerStyle = makeHeaderStyle(wb);
+            XSSFCellStyle sumLabelStyle = makeSumLabelStyle(wb);
+            XSSFCellStyle sumNumStyle = makeSumNumStyle(wb);
+
+            byte[] rgbPaid    = {(byte) 198, (byte) 239, (byte) 206};
+            byte[] rgbPartial = {(byte) 255, (byte) 235, (byte) 156};
+            byte[] rgbPending = {(byte) 255, (byte) 199, (byte) 206};
+            XSSFCellStyle numPaid    = makeNumStyle(wb, rgbPaid);
+            XSSFCellStyle numPartial = makeNumStyle(wb, rgbPartial);
+            XSSFCellStyle numPending = makeNumStyle(wb, rgbPending);
+            XSSFCellStyle txtPaid    = makeTxtStyle(wb, rgbPaid);
+            XSSFCellStyle txtPartial = makeTxtStyle(wb, rgbPartial);
+            XSSFCellStyle txtPending = makeTxtStyle(wb, rgbPending);
+
+            int r = 0;
+
+            String orgName = getOrgName();
+            Row titleRow = sheet.createRow(r++);
+            titleRow.setHeightInPoints(28);
+            Cell titleCell = titleRow.createCell(0);
+            titleCell.setCellValue(orgName + "  |  PAYROLL REGISTER  |  " + monthName + " " + year);
+            titleCell.setCellStyle(titleStyle);
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 24));
+
+            r++; // blank row
+
+            Row hdr = sheet.createRow(r++);
+            hdr.setHeightInPoints(22);
+            String[] cols = {
+                "Emp Code", "Name", "Department", "Base Salary",
+                "Working Days", "Present", "Absent", "Half", "OT Hrs",
+                "Basic (Earned)", "HRA", "Conv", "Special", "OT Pay", "Gross",
+                "PF", "ESI", "PT", "Advance Ded", "Other Ded", "Total Ded",
+                "Net Salary", "Paid", "Balance", "Status"
+            };
+            for (int i = 0; i < cols.length; i++) {
+                Cell c = hdr.createCell(i);
+                c.setCellValue(cols[i]);
+                c.setCellStyle(headerStyle);
+            }
+
+            double[] totals = new double[21];
+            for (SalaryRecord rec : records) {
+                String status = rec.getStatus().name();
+                XSSFCellStyle ns = switch (status) {
+                    case "PAID"    -> numPaid;
+                    case "PARTIAL" -> numPartial;
+                    default        -> numPending;
+                };
+                XSSFCellStyle ts = switch (status) {
+                    case "PAID"    -> txtPaid;
+                    case "PARTIAL" -> txtPartial;
+                    default        -> txtPending;
+                };
+
+                BigDecimal balanceDue = rec.getNetSalary().subtract(rec.getAmountPaid()).max(BigDecimal.ZERO);
+                BigDecimal basicPay = rec.getBasicPay() != null ? rec.getBasicPay() : BigDecimal.ZERO;
+                BigDecimal hraVal = rec.getHra() != null ? rec.getHra() : BigDecimal.ZERO;
+                BigDecimal convVal = rec.getConveyanceAllowance() != null ? rec.getConveyanceAllowance() : BigDecimal.ZERO;
+                BigDecimal specVal = rec.getSpecialAllowance() != null ? rec.getSpecialAllowance() : BigDecimal.ZERO;
+                BigDecimal grossVal = rec.getGrossEarnings() != null ? rec.getGrossEarnings() : BigDecimal.ZERO;
+                BigDecimal pfVal = rec.getPfDeduction() != null ? rec.getPfDeduction() : BigDecimal.ZERO;
+                BigDecimal esiVal = rec.getEsiDeduction() != null ? rec.getEsiDeduction() : BigDecimal.ZERO;
+                BigDecimal ptVal = rec.getProfessionalTax() != null ? rec.getProfessionalTax() : BigDecimal.ZERO;
+                BigDecimal advVal = rec.getAdvanceDeduction() != null ? rec.getAdvanceDeduction() : BigDecimal.ZERO;
+                BigDecimal totalDedVal = rec.getTotalDeductions() != null ? rec.getTotalDeductions() : BigDecimal.ZERO;
+
+                Row row = sheet.createRow(r++);
+                row.setHeightInPoints(17);
+                int c = 0;
+                String empCode = rec.getStaff().getEmployeeCode() != null ? rec.getStaff().getEmployeeCode() : "EMP-" + String.format("%03d", rec.getStaff().getId());
+                setStrCell(row, c++, empCode, ts);
+                setStrCell(row, c++, rec.getStaff().getFullName(), ts);
+                setStrCell(row, c++, rec.getStaff().getStaffRole() != null ? rec.getStaff().getStaffRole().getName() : "-", ts);
+                setNumCell(row, c++, rec.getBaseSalary().doubleValue(), ns);
+                setNumCell(row, c++, rec.getWorkingDays(), ns);
+                setNumCell(row, c++, rec.getPresentDays(), ns);
+                setNumCell(row, c++, rec.getAbsentDays(), ns);
+                setNumCell(row, c++, rec.getHalfDays(), ns);
+                setNumCell(row, c++, rec.getOvertimeHours().doubleValue(), ns);
+                setNumCell(row, c++, basicPay.doubleValue(), ns);
+                setNumCell(row, c++, hraVal.doubleValue(), ns);
+                setNumCell(row, c++, convVal.doubleValue(), ns);
+                setNumCell(row, c++, specVal.doubleValue(), ns);
+                setNumCell(row, c++, rec.getOvertimePay().doubleValue(), ns);
+                setNumCell(row, c++, grossVal.doubleValue(), ns);
+                setNumCell(row, c++, pfVal.doubleValue(), ns);
+                setNumCell(row, c++, esiVal.doubleValue(), ns);
+                setNumCell(row, c++, ptVal.doubleValue(), ns);
+                setNumCell(row, c++, advVal.doubleValue(), ns);
+                setNumCell(row, c++, rec.getDeductions().doubleValue(), ns);
+                setNumCell(row, c++, totalDedVal.add(rec.getDeductions()).doubleValue(), ns);
+                setNumCell(row, c++, rec.getNetSalary().doubleValue(), ns);
+                setNumCell(row, c++, rec.getAmountPaid().doubleValue(), ns);
+                setNumCell(row, c++, balanceDue.doubleValue(), ns);
+                setStrCell(row, c, status, ts);
+
+                totals[0]  += rec.getBaseSalary().doubleValue();
+                totals[6]  += basicPay.doubleValue();
+                totals[7]  += hraVal.doubleValue();
+                totals[8]  += convVal.doubleValue();
+                totals[9]  += specVal.doubleValue();
+                totals[10] += rec.getOvertimePay().doubleValue();
+                totals[11] += grossVal.doubleValue();
+                totals[12] += pfVal.doubleValue();
+                totals[13] += esiVal.doubleValue();
+                totals[14] += ptVal.doubleValue();
+                totals[15] += advVal.doubleValue();
+                totals[16] += rec.getDeductions().doubleValue();
+                totals[17] += totalDedVal.add(rec.getDeductions()).doubleValue();
+                totals[18] += rec.getNetSalary().doubleValue();
+                totals[19] += rec.getAmountPaid().doubleValue();
+                totals[20] += balanceDue.doubleValue();
+            }
+
+            Row sumRow = sheet.createRow(r);
+            sumRow.setHeightInPoints(22);
+            setStrCell(sumRow, 0, "TOTAL", sumLabelStyle);
+            setStrCell(sumRow, 1, records.size() + " staff", sumLabelStyle);
+            setStrCell(sumRow, 2, "", sumLabelStyle);
+            setNumCell(sumRow, 3, totals[0], sumNumStyle);
+            for (int i = 4; i <= 8; i++) setStrCell(sumRow, i, "", sumLabelStyle);
+            setNumCell(sumRow, 9,  totals[6], sumNumStyle);
+            setNumCell(sumRow, 10, totals[7], sumNumStyle);
+            setNumCell(sumRow, 11, totals[8], sumNumStyle);
+            setNumCell(sumRow, 12, totals[9], sumNumStyle);
+            setNumCell(sumRow, 13, totals[10], sumNumStyle);
+            setNumCell(sumRow, 14, totals[11], sumNumStyle);
+            setNumCell(sumRow, 15, totals[12], sumNumStyle);
+            setNumCell(sumRow, 16, totals[13], sumNumStyle);
+            setNumCell(sumRow, 17, totals[14], sumNumStyle);
+            setNumCell(sumRow, 18, totals[15], sumNumStyle);
+            setNumCell(sumRow, 19, totals[16], sumNumStyle);
+            setNumCell(sumRow, 20, totals[17], sumNumStyle);
+            setNumCell(sumRow, 21, totals[18], sumNumStyle);
+            setNumCell(sumRow, 22, totals[19], sumNumStyle);
+            setNumCell(sumRow, 23, totals[20], sumNumStyle);
+            setStrCell(sumRow, 24, "", sumLabelStyle);
+
+            wb.write(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            log.error("Payroll Excel generation failed for {}/{}", year, month, e);
+            throw new ServiceException("Failed to generate payroll Excel: " + e.getMessage(), "EXCEL_GENERATION_FAILED");
+        }
+    }
+
     // ─── PDF receipt ──────────────────────────────────────────────────────────
 
     private byte[] buildReceiptPdf(Deal deal, Payment payment) {
@@ -303,7 +474,7 @@ public class DownloadService {
         }
     }
 
-    // ─── PDF salary slip ───────────────────────────────────────────────────────
+    // ─── PDF salary slip (with salary structure breakdown) ──────────────────────
 
     private byte[] buildSalarySlipPdf(SalaryRecord record) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -317,164 +488,121 @@ public class DownloadService {
             Font labelFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD,     10, TEXT_LABEL);
             Font valueFont   = FontFactory.getFont(FontFactory.HELVETICA,          10, TEXT_DARK);
             Font greenFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD,     11, GREEN_DARK);
+            Font redFont     = FontFactory.getFont(FontFactory.HELVETICA_BOLD,     10, new Color(200, 30, 30));
             Font footerFont  = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE,   8, TEXT_FOOTER);
 
+            String orgName = getOrgName();
+            String monthName = Month.of(record.getMonth()).getDisplayName(TextStyle.FULL, Locale.ENGLISH);
             Staff staff = record.getStaff();
-            Organization org = staff.getOrganization();
 
-            // ── Header (org branding) ──
-            Font brandFont    = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, new Color(15, 25, 35));
+            // ── Header ──
+            Font brandFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, new Color(15, 25, 35));
             Font brandSubFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, new Color(20, 184, 166));
-            Font reraFont     = FontFactory.getFont(FontFactory.HELVETICA, 8, new Color(130, 130, 130));
 
-            String orgName = org != null ? org.getName() : "Organization";
             Paragraph brand = new Paragraph(orgName, brandFont);
             brand.setAlignment(Element.ALIGN_CENTER);
             doc.add(brand);
 
-            Paragraph tagline = new Paragraph("PREMIUM REAL ESTATE", brandSubFont);
+            Paragraph tagline = new Paragraph("SALARY SLIP", brandSubFont);
             tagline.setAlignment(Element.ALIGN_CENTER);
             tagline.setSpacingAfter(2);
             doc.add(tagline);
 
-            if (org != null && org.getReraNumber() != null && !org.getReraNumber().isBlank()) {
-                Paragraph rera = new Paragraph("RERA Reg. No: " + org.getReraNumber(), reraFont);
-                rera.setAlignment(Element.ALIGN_CENTER);
-                rera.setSpacingAfter(4);
-                doc.add(rera);
-            }
-
-            doc.add(new Chunk(new LineSeparator(1.5f, 100, new Color(20, 184, 166), Element.ALIGN_CENTER, -2)));
-
-            Paragraph slipLabel = new Paragraph("\nSALARY SLIP", titleFont);
-            slipLabel.setAlignment(Element.ALIGN_CENTER);
-            slipLabel.setSpacingAfter(2);
-            doc.add(slipLabel);
-
-            String monthName = Month.of(record.getMonth()).getDisplayName(TextStyle.FULL, Locale.ENGLISH);
             Paragraph period = new Paragraph(monthName + " " + record.getYear(), subFont);
             period.setAlignment(Element.ALIGN_CENTER);
-            period.setSpacingAfter(6);
+            period.setSpacingAfter(4);
             doc.add(period);
 
-            doc.add(new Chunk(new LineSeparator(0.5f, 40, new Color(200, 200, 200), Element.ALIGN_CENTER, -2)));
+            doc.add(new Chunk(new LineSeparator(1.5f, 100, new Color(20, 184, 166), Element.ALIGN_CENTER, -2)));
 
             // ── Employee Details ──
             addSectionBanner(doc, "Employee Details", BLUE_DARK, sectionFont);
             PdfPTable empTable = new PdfPTable(new float[]{1.5f, 2.5f, 1.5f, 2.5f});
             empTable.setWidthPercentage(100);
             empTable.setSpacingAfter(8);
+            String empCode = staff.getEmployeeCode() != null ? staff.getEmployeeCode() : "EMP-" + String.format("%03d", staff.getId());
             addRow4(empTable, "Employee Name", staff.getFullName(),
-                              "Role", staff.getStaffRole() != null ? staff.getStaffRole().getName() : "-", labelFont, valueFont);
-            addRow4(empTable, "Phone", staff.getPhone() != null ? staff.getPhone() : "-",
-                              "Employee ID", String.valueOf(staff.getId()), labelFont, valueFont);
-            if (staff.getBankAccountNumber() != null && !staff.getBankAccountNumber().isBlank()) {
-                addRow4(empTable, "Bank A/C No.", staff.getBankAccountNumber(),
-                                  "IFSC Code", staff.getIfscCode() != null ? staff.getIfscCode() : "-", labelFont, valueFont);
-            }
+                              "Employee Code", empCode, labelFont, valueFont);
+            addRow4(empTable, "Department", staff.getStaffRole() != null ? staff.getStaffRole().getName() : "-",
+                              "Base Salary", fmt(staff.getMonthlySalary()), labelFont, valueFont);
+            addRow4(empTable, "Working Days", String.valueOf(record.getWorkingDays()),
+                              "Holidays", String.valueOf(record.getHolidayCount() != null ? record.getHolidayCount() : 0), labelFont, valueFont);
+            addRow4(empTable, "Present Days", String.valueOf(record.getPresentDays()),
+                              "Half Days", String.valueOf(record.getHalfDays()), labelFont, valueFont);
+            addRow4(empTable, "Absent Days", String.valueOf(record.getAbsentDays()),
+                              "OT Hours", record.getOvertimeHours() != null ? record.getOvertimeHours().toPlainString() : "0", labelFont, valueFont);
             doc.add(empTable);
 
-            // ── Attendance Summary ──
-            addSectionBanner(doc, "Attendance Summary", BLUE_DARK, sectionFont);
-            PdfPTable attTable = new PdfPTable(new float[]{1.5f, 2.5f, 1.5f, 2.5f});
-            attTable.setWidthPercentage(100);
-            attTable.setSpacingAfter(8);
-            addRow4(attTable, "Working Days", String.valueOf(record.getWorkingDays()),
-                              "Present Days", String.valueOf(record.getPresentDays()), labelFont, valueFont);
-            addRow4(attTable, "Half Days", String.valueOf(record.getHalfDays()),
-                              "Absent Days", String.valueOf(record.getAbsentDays()), labelFont, valueFont);
-            BigDecimal otHours = record.getOvertimeHours() != null ? record.getOvertimeHours() : BigDecimal.ZERO;
-            addRow4(attTable, "Overtime Hours", otHours.toPlainString(),
-                              "", "", labelFont, valueFont);
-            doc.add(attTable);
-
-            // ── Earnings ──
-            BigDecimal baseSalary  = record.getBaseSalary() != null ? record.getBaseSalary() : BigDecimal.ZERO;
-            BigDecimal otPay       = record.getOvertimePay() != null ? record.getOvertimePay() : BigDecimal.ZERO;
-            BigDecimal bonusAmt    = record.getBonus() != null ? record.getBonus() : BigDecimal.ZERO;
-            BigDecimal deductions  = record.getDeductions() != null ? record.getDeductions() : BigDecimal.ZERO;
-            BigDecimal netSalary   = record.getNetSalary() != null ? record.getNetSalary() : BigDecimal.ZERO;
-
-            // Earned salary = netSalary + deductions - bonus - otPay (reverse-calculate from net)
-            BigDecimal earnedSalary = netSalary.add(deductions).subtract(bonusAmt).subtract(otPay);
+            // ── Earnings (salary structure breakdown) ──
+            BigDecimal basicPay = record.getBasicPay() != null ? record.getBasicPay() : BigDecimal.ZERO;
+            BigDecimal hraVal = record.getHra() != null ? record.getHra() : BigDecimal.ZERO;
+            BigDecimal convVal = record.getConveyanceAllowance() != null ? record.getConveyanceAllowance() : BigDecimal.ZERO;
+            BigDecimal specVal = record.getSpecialAllowance() != null ? record.getSpecialAllowance() : BigDecimal.ZERO;
+            BigDecimal grossVal = record.getGrossEarnings() != null ? record.getGrossEarnings() : BigDecimal.ZERO;
 
             addSectionBanner(doc, "Earnings", GREEN_DARK, sectionFont);
-            PdfPTable earnTable = new PdfPTable(new float[]{1.5f, 2.5f, 1.5f, 2.5f});
+            PdfPTable earnTable = new PdfPTable(new float[]{3f, 2f});
             earnTable.setWidthPercentage(100);
             earnTable.setSpacingAfter(8);
-            addRow4(earnTable, "Base Salary", fmt(baseSalary),
-                               "Earned Salary", fmt(earnedSalary), labelFont, valueFont);
-            addRow4(earnTable, "Overtime Pay", fmt(otPay),
-                               "Bonus", fmt(bonusAmt), labelFont, valueFont);
+            addRow2(earnTable, "Basic Pay", fmt(basicPay), labelFont, valueFont);
+            addRow2(earnTable, "House Rent Allowance (HRA)", fmt(hraVal), labelFont, valueFont);
+            addRow2(earnTable, "Conveyance Allowance", fmt(convVal), labelFont, valueFont);
+            addRow2(earnTable, "Special Allowance", fmt(specVal), labelFont, valueFont);
+            if (record.getOvertimePay().compareTo(BigDecimal.ZERO) > 0) {
+                addRow2(earnTable, "Overtime Pay", fmt(record.getOvertimePay()), labelFont, valueFont);
+            }
+            if (record.getBonus().compareTo(BigDecimal.ZERO) > 0) {
+                addRow2(earnTable, "Bonus", fmt(record.getBonus()), labelFont, valueFont);
+            }
+            addRow2(earnTable, "GROSS EARNINGS", fmt(grossVal), labelFont, greenFont);
             doc.add(earnTable);
 
-            // ── Deductions ──
+            // ── Deductions (statutory + advance) ──
+            BigDecimal pfVal = record.getPfDeduction() != null ? record.getPfDeduction() : BigDecimal.ZERO;
+            BigDecimal esiVal = record.getEsiDeduction() != null ? record.getEsiDeduction() : BigDecimal.ZERO;
+            BigDecimal ptVal = record.getProfessionalTax() != null ? record.getProfessionalTax() : BigDecimal.ZERO;
+            BigDecimal advVal = record.getAdvanceDeduction() != null ? record.getAdvanceDeduction() : BigDecimal.ZERO;
+            BigDecimal totalDedVal = record.getTotalDeductions() != null ? record.getTotalDeductions() : BigDecimal.ZERO;
+            BigDecimal allDeductions = totalDedVal.add(record.getDeductions());
+
             addSectionBanner(doc, "Deductions", new Color(180, 40, 40), sectionFont);
-            PdfPTable dedTable = new PdfPTable(new float[]{1.5f, 2.5f, 1.5f, 2.5f});
+            PdfPTable dedTable = new PdfPTable(new float[]{3f, 2f});
             dedTable.setWidthPercentage(100);
             dedTable.setSpacingAfter(8);
-            addRow4(dedTable, "Total Deductions", fmt(deductions),
-                              "", "", labelFont, valueFont);
+            if (pfVal.compareTo(BigDecimal.ZERO) > 0) addRow2(dedTable, "Provident Fund (PF)", fmt(pfVal), labelFont, valueFont);
+            if (esiVal.compareTo(BigDecimal.ZERO) > 0) addRow2(dedTable, "Employee State Insurance (ESI)", fmt(esiVal), labelFont, valueFont);
+            if (ptVal.compareTo(BigDecimal.ZERO) > 0) addRow2(dedTable, "Professional Tax", fmt(ptVal), labelFont, valueFont);
+            if (advVal.compareTo(BigDecimal.ZERO) > 0) addRow2(dedTable, "Advance Deduction", fmt(advVal), labelFont, valueFont);
+            if (record.getDeductions().compareTo(BigDecimal.ZERO) > 0) addRow2(dedTable, "Other Deductions", fmt(record.getDeductions()), labelFont, valueFont);
+            addRow2(dedTable, "TOTAL DEDUCTIONS", fmt(allDeductions), labelFont, redFont);
             doc.add(dedTable);
 
-            // ── Net Salary (highlighted) ──
-            PdfPTable netTable = new PdfPTable(new float[]{1.5f, 2.5f, 1.5f, 2.5f});
+            // ── Net Salary Summary ──
+            addSectionBanner(doc, "Net Salary", BLUE_DARK, sectionFont);
+            PdfPTable netTable = new PdfPTable(new float[]{3f, 2f});
             netTable.setWidthPercentage(100);
-            netTable.setSpacingBefore(4);
             netTable.setSpacingAfter(8);
-            addRow4Highlighted(netTable, "NET SALARY", fmt(netSalary),
-                                         "Amount Paid", fmt(record.getAmountPaid() != null ? record.getAmountPaid() : BigDecimal.ZERO),
-                                         labelFont, greenFont, valueFont);
-            doc.add(netTable);
-
-            // ── Payment Status ──
-            addSectionBanner(doc, "Payment Information", BLUE_DARK, sectionFont);
-            PdfPTable payInfoTable = new PdfPTable(new float[]{1.5f, 2.5f, 1.5f, 2.5f});
-            payInfoTable.setWidthPercentage(100);
-            payInfoTable.setSpacingAfter(8);
-            addRow4(payInfoTable, "Payment Status", record.getStatus().name(),
-                                  "Payment Date", record.getPaymentDate() != null ? record.getPaymentDate().format(DATE_FMT) : "-",
-                                  labelFont, valueFont);
-            if (record.getRemarks() != null && !record.getRemarks().isBlank()) {
-                addWideRow(payInfoTable, "Remarks", record.getRemarks(), labelFont, valueFont);
+            addRow2(netTable, "Gross Earnings", fmt(grossVal.add(record.getBonus())), labelFont, valueFont);
+            addRow2(netTable, "Total Deductions", fmt(allDeductions), labelFont, redFont);
+            addRow2(netTable, "NET SALARY", fmt(record.getNetSalary()), labelFont, greenFont);
+            addRow2(netTable, "Amount Paid", fmt(record.getAmountPaid()), labelFont, valueFont);
+            BigDecimal balance = record.getNetSalary().subtract(record.getAmountPaid()).max(BigDecimal.ZERO);
+            addRow2(netTable, "Balance Due", fmt(balance), labelFont, balance.compareTo(BigDecimal.ZERO) > 0 ? redFont : greenFont);
+            addRow2(netTable, "Status", record.getStatus().name(), labelFont, valueFont);
+            if (record.getPaymentMethod() != null) {
+                addRow2(netTable, "Payment Method", record.getPaymentMethod().replace('_', ' '), labelFont, valueFont);
             }
-            doc.add(payInfoTable);
+            if (record.getPaymentReference() != null) {
+                addRow2(netTable, "Payment Reference", record.getPaymentReference(), labelFont, valueFont);
+            }
+            doc.add(netTable);
 
             // ── Footer ──
             doc.add(new Chunk(new LineSeparator(0.5f, 100, new Color(200, 200, 200), Element.ALIGN_CENTER, -2)));
-
-            String footerBrandText = orgName;
-            if (org != null && org.getReraNumber() != null && !org.getReraNumber().isBlank()) {
-                footerBrandText += "  |  RERA: " + org.getReraNumber();
-            }
-            Paragraph footerBrand = new Paragraph("\n" + footerBrandText, footerFont);
-            footerBrand.setAlignment(Element.ALIGN_CENTER);
-            doc.add(footerBrand);
-
             Paragraph footerNote = new Paragraph(
-                    "This is a system-generated salary slip and does not require a signature.", footerFont);
+                    "\nThis is a system-generated salary slip and does not require a signature.", footerFont);
             footerNote.setAlignment(Element.ALIGN_CENTER);
-            footerNote.setSpacingBefore(2);
             doc.add(footerNote);
-
-            if (org != null) {
-                StringBuilder contactParts = new StringBuilder();
-                if (org.getAddress() != null && !org.getAddress().isBlank()) contactParts.append(org.getAddress());
-                if (org.getPhone() != null && !org.getPhone().isBlank()) {
-                    if (!contactParts.isEmpty()) contactParts.append("  |  ");
-                    contactParts.append(org.getPhone());
-                }
-                if (org.getEmail() != null && !org.getEmail().isBlank()) {
-                    if (!contactParts.isEmpty()) contactParts.append("  |  ");
-                    contactParts.append(org.getEmail());
-                }
-                if (!contactParts.isEmpty()) {
-                    Paragraph footerContact = new Paragraph(contactParts.toString(), footerFont);
-                    footerContact.setAlignment(Element.ALIGN_CENTER);
-                    footerContact.setSpacingBefore(2);
-                    doc.add(footerContact);
-                }
-            }
 
             doc.close();
             return out.toByteArray();
@@ -1167,5 +1295,32 @@ public class DownloadService {
 
     private String sanitize(String name) {
         return name.replaceAll("[^a-zA-Z0-9]", "_").replaceAll("_+", "_");
+    }
+
+    private void addRow2(PdfPTable table, String label, String value, Font labelFont, Font valueFont) {
+        PdfPCell lc = new PdfPCell(new Phrase(label, labelFont));
+        lc.setBorder(Rectangle.NO_BORDER);
+        lc.setBackgroundColor(GREY_LIGHT);
+        lc.setPaddingBottom(5);
+        lc.setPaddingLeft(4);
+        table.addCell(lc);
+        PdfPCell vc = new PdfPCell(new Phrase(value, valueFont));
+        vc.setBorder(Rectangle.NO_BORDER);
+        vc.setBackgroundColor(GREY_LIGHT);
+        vc.setPaddingBottom(5);
+        vc.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        vc.setPaddingRight(4);
+        table.addCell(vc);
+    }
+
+    private String getOrgName() {
+        try {
+            Long orgId = tenantContext.getCurrentOrganizationId();
+            return organizationRepository.findById(orgId)
+                    .map(Organization::getName)
+                    .orElse("Organization");
+        } catch (Exception e) {
+            return "Organization";
+        }
     }
 }

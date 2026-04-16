@@ -20,4 +20,8 @@ public class SalaryPaymentRequest {
     private BigDecimal deductions = BigDecimal.ZERO;
 
     private String remarks;
+
+    private String paymentMethod; // CASH, BANK_TRANSFER, UPI, CHEQUE
+
+    private String paymentReference; // UTR/cheque number
 }
