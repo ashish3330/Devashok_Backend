@@ -76,7 +76,8 @@ public class StockTransactionService {
         }
 
         Supplier supplier = null;
-        if (request.getType() == TransactionType.INWARD && request.getSupplierId() != null) {
+        if ((request.getType() == TransactionType.INWARD || request.getType() == TransactionType.RETURN_TO_SUPPLIER)
+                && request.getSupplierId() != null) {
             supplier = supplierRepository.findById(request.getSupplierId())
                     .orElseThrow(() -> new ResourceNotFoundException("Supplier", request.getSupplierId()));
             if (supplier.getOrganization() != null && !supplier.getOrganization().getId().equals(orgId)) {
@@ -92,6 +93,23 @@ public class StockTransactionService {
                 material.setCurrentQuantity(material.getCurrentQuantity().add(request.getQuantity()));
                 break;
             case OUTWARD:
+                if (material.getCurrentQuantity().compareTo(request.getQuantity()) < 0) {
+                    throw new ServiceException(
+                            "Insufficient stock. Available: " + material.getCurrentQuantity() + " " + material.getUnit(),
+                            "INSUFFICIENT_STOCK");
+                }
+                material.setCurrentQuantity(material.getCurrentQuantity().subtract(request.getQuantity()));
+                break;
+            case WASTAGE:
+            case DAMAGE:
+                if (material.getCurrentQuantity().compareTo(request.getQuantity()) < 0) {
+                    throw new ServiceException(
+                            "Insufficient stock. Available: " + material.getCurrentQuantity() + " " + material.getUnit(),
+                            "INSUFFICIENT_STOCK");
+                }
+                material.setCurrentQuantity(material.getCurrentQuantity().subtract(request.getQuantity()));
+                break;
+            case RETURN_TO_SUPPLIER:
                 if (material.getCurrentQuantity().compareTo(request.getQuantity()) < 0) {
                     throw new ServiceException(
                             "Insufficient stock. Available: " + material.getCurrentQuantity() + " " + material.getUnit(),
