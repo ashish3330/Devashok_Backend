@@ -75,9 +75,17 @@ public class StockTransactionService {
             }
         }
 
+        // Supplier is required for RETURN_TO_SUPPLIER, optional for INWARD/DAMAGE/WASTAGE
+        if (request.getType() == TransactionType.RETURN_TO_SUPPLIER && request.getSupplierId() == null) {
+            throw new ServiceException("Supplier is required for RETURN_TO_SUPPLIER transactions", "SUPPLIER_REQUIRED");
+        }
+
         Supplier supplier = null;
-        if ((request.getType() == TransactionType.INWARD || request.getType() == TransactionType.RETURN_TO_SUPPLIER)
-                && request.getSupplierId() != null) {
+        if (request.getSupplierId() != null && (
+                request.getType() == TransactionType.INWARD
+                || request.getType() == TransactionType.RETURN_TO_SUPPLIER
+                || request.getType() == TransactionType.DAMAGE
+                || request.getType() == TransactionType.WASTAGE)) {
             supplier = supplierRepository.findById(request.getSupplierId())
                     .orElseThrow(() -> new ResourceNotFoundException("Supplier", request.getSupplierId()));
             if (supplier.getOrganization() != null && !supplier.getOrganization().getId().equals(orgId)) {
