@@ -3,6 +3,7 @@ package com.realestate.emi.dto.response;
 import com.realestate.emi.enums.AttendanceStatus;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
@@ -24,4 +25,6 @@ public class AttendanceResponse {
     private Double overtimeHours;
     private String remarks;
     private String markedBy;
+    private String lateStatus;
+    private BigDecimal lateMinutes;
 }

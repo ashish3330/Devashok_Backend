@@ -4,6 +4,7 @@ import com.realestate.emi.enums.AttendanceStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
@@ -48,4 +49,10 @@ public class Attendance extends BaseAuditEntity {
 
     @Column(name = "marked_by")
     private String markedBy;
+
+    @Column(name = "late_status", length = 20)
+    private String lateStatus; // ON_TIME, LATE, EARLY_LEAVE
+
+    @Column(name = "late_minutes", precision = 4, scale = 2)
+    private BigDecimal lateMinutes;
 }

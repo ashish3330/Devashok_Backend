@@ -14,6 +14,7 @@ import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import com.lowagie.text.pdf.draw.LineSeparator;
+import com.realestate.emi.entity.Attendance;
 import com.realestate.emi.entity.Deal;
 import com.realestate.emi.entity.EmiSchedule;
 import com.realestate.emi.entity.Organization;
@@ -22,12 +23,16 @@ import com.realestate.emi.entity.SalaryRecord;
 import com.realestate.emi.entity.Staff;
 import com.realestate.emi.entity.StockTransaction;
 import com.realestate.emi.entity.Supplier;
+import com.realestate.emi.enums.AttendanceStatus;
 import com.realestate.emi.exception.ResourceNotFoundException;
 import com.realestate.emi.exception.ServiceException;
+import com.realestate.emi.repository.AttendanceRepository;
 import com.realestate.emi.repository.DealRepository;
 import com.realestate.emi.repository.EmiScheduleRepository;
+import com.realestate.emi.repository.OrganizationRepository;
 import com.realestate.emi.repository.PaymentRepository;
 import com.realestate.emi.repository.SalaryRecordRepository;
+import com.realestate.emi.repository.StaffRepository;
 import com.realestate.emi.repository.StockTransactionRepository;
 import com.realestate.emi.security.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -41,12 +46,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Month;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -68,6 +77,9 @@ public class DownloadService {
     private final EmiScheduleRepository emiScheduleRepository;
     private final SalaryRecordRepository salaryRecordRepository;
     private final StockTransactionRepository stockTransactionRepository;
+    private final AttendanceRepository attendanceRepository;
+    private final StaffRepository staffRepository;
+    private final OrganizationRepository organizationRepository;
     private final TenantContext tenantContext;
 
     public record FileDownload(byte[] content, String fileName) {}
@@ -134,6 +146,18 @@ public class DownloadService {
         }
         String fileName = "Stock_Transaction_Receipt_" + transactionId + ".pdf";
         return new FileDownload(buildStockTransactionReceiptPdf(txn, org), fileName);
+    }
+
+    @Transactional(readOnly = true)
+    public FileDownload getAttendanceReport(int year, int month) {
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        Organization org = organizationRepository.findById(orgId)
+                .orElseThrow(() -> new ServiceException("Organization not found", "ORG_NOT_FOUND"));
+        List<Staff> activeStaff = staffRepository.findByOrganizationIdAndIsActiveTrueOrderByFullNameAsc(orgId);
+
+        String monthName = Month.of(month).getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+        String fileName = "Attendance_Report_" + monthName + "_" + year + ".xlsx";
+        return new FileDownload(buildAttendanceExcel(org, activeStaff, year, month), fileName);
     }
 
     // ─── PDF receipt ──────────────────────────────────────────────────────────
@@ -824,6 +848,194 @@ public class DownloadService {
         setStrCell(row, 4, v2, valueStyle);
         sheet.addMergedRegion(new CellRangeAddress(r, r, 4, 5));
         return r + 1;
+    }
+
+    // ─── Attendance Excel ──────────────────────────────────────────────────────
+
+    private byte[] buildAttendanceExcel(Organization org, List<Staff> staffList, int year, int month) {
+        try (XSSFWorkbook wb = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            YearMonth ym = YearMonth.of(year, month);
+            int daysInMonth = ym.lengthOfMonth();
+            String monthName = Month.of(month).getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+
+            // Number of columns: Employee Name + days + Present + Absent + Half + Leave + OT Hrs + %
+            int totalCols = 1 + daysInMonth + 6;
+
+            XSSFSheet sheet = wb.createSheet("Attendance");
+            sheet.setColumnWidth(0, 6000); // Employee name column
+            for (int i = 1; i <= daysInMonth; i++) sheet.setColumnWidth(i, 1200);
+            for (int i = daysInMonth + 1; i < totalCols; i++) sheet.setColumnWidth(i, 2800);
+
+            // Styles
+            XSSFCellStyle titleStyle = makeTitleStyle(wb);
+            XSSFCellStyle headerStyle = makeHeaderStyle(wb);
+            XSSFCellStyle sumLabelStyle = makeSumLabelStyle(wb);
+            XSSFCellStyle sumNumStyle = makeSumNumStyle(wb);
+
+            // Day status styles
+            XSSFCellStyle presentStyle = makeAttCellStyle(wb, new byte[]{(byte)198, (byte)239, (byte)206}); // green
+            XSSFCellStyle absentStyle = makeAttCellStyle(wb, new byte[]{(byte)255, (byte)199, (byte)206});  // red
+            XSSFCellStyle halfDayStyle = makeAttCellStyle(wb, new byte[]{(byte)255, (byte)235, (byte)156}); // yellow
+            XSSFCellStyle leaveStyle = makeAttCellStyle(wb, new byte[]{(byte)189, (byte)215, (byte)238});   // blue
+            XSSFCellStyle holidayStyle = makeAttCellStyle(wb, new byte[]{(byte)225, (byte)210, (byte)240}); // purple
+            XSSFCellStyle unmarkedStyle = makeAttCellStyle(wb, new byte[]{(byte)230, (byte)230, (byte)230}); // grey
+            XSSFCellStyle nameStyle = makeInfoValueStyle(wb);
+            XSSFCellStyle numDataStyle = makeAttNumStyle(wb);
+
+            int r = 0;
+
+            // Title row
+            Row titleRow = sheet.createRow(r++);
+            titleRow.setHeightInPoints(28);
+            Cell titleCell = titleRow.createCell(0);
+            String orgName = org != null && org.getName() != null ? org.getName() : "Organization";
+            titleCell.setCellValue(orgName + "  |  MONTHLY ATTENDANCE REPORT  |  " + monthName + " " + year);
+            titleCell.setCellStyle(titleStyle);
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, totalCols - 1));
+
+            r++; // blank row
+
+            // Header row
+            Row hdr = sheet.createRow(r++);
+            hdr.setHeightInPoints(20);
+            setStrCell(hdr, 0, "Employee", headerStyle);
+            for (int d = 1; d <= daysInMonth; d++) {
+                setStrCell(hdr, d, String.valueOf(d), headerStyle);
+            }
+            int col = daysInMonth + 1;
+            setStrCell(hdr, col++, "Present", headerStyle);
+            setStrCell(hdr, col++, "Absent", headerStyle);
+            setStrCell(hdr, col++, "Half", headerStyle);
+            setStrCell(hdr, col++, "Leave", headerStyle);
+            setStrCell(hdr, col++, "OT Hrs", headerStyle);
+            setStrCell(hdr, col, "Att %", headerStyle);
+
+            // Fetch all attendance for the month for all staff
+            LocalDate from = ym.atDay(1);
+            LocalDate to = ym.atEndOfMonth();
+
+            int totalPresent = 0, totalAbsent = 0, totalHalf = 0, totalLeave = 0;
+            double totalOT = 0;
+
+            for (Staff staff : staffList) {
+                List<Attendance> records = attendanceRepository.findByStaffIdAndDateBetweenOrderByDateAsc(staff.getId(), from, to);
+                Map<LocalDate, Attendance> dateMap = records.stream()
+                        .collect(Collectors.toMap(Attendance::getDate, a -> a));
+
+                Row row = sheet.createRow(r++);
+                row.setHeightInPoints(17);
+                setStrCell(row, 0, staff.getFullName(), nameStyle);
+
+                int sPresent = 0, sAbsent = 0, sHalf = 0, sLeave = 0;
+                double sOT = 0;
+
+                for (int d = 1; d <= daysInMonth; d++) {
+                    LocalDate date = ym.atDay(d);
+                    Attendance att = dateMap.get(date);
+
+                    if (att != null) {
+                        switch (att.getStatus()) {
+                            case PRESENT -> {
+                                setStrCell(row, d, "P", presentStyle);
+                                sPresent++;
+                            }
+                            case ABSENT -> {
+                                setStrCell(row, d, "A", absentStyle);
+                                sAbsent++;
+                            }
+                            case HALF_DAY -> {
+                                setStrCell(row, d, "H", halfDayStyle);
+                                sHalf++;
+                            }
+                            case LEAVE -> {
+                                setStrCell(row, d, "L", leaveStyle);
+                                sLeave++;
+                            }
+                            case HOLIDAY -> {
+                                setStrCell(row, d, "HD", holidayStyle);
+                            }
+                        }
+                        if (att.getOvertimeHours() != null) sOT += att.getOvertimeHours();
+                    } else if (date.getDayOfWeek().getValue() == 7) {
+                        setStrCell(row, d, "S", holidayStyle); // Sunday
+                    } else {
+                        setStrCell(row, d, "-", unmarkedStyle);
+                    }
+                }
+
+                col = daysInMonth + 1;
+                setNumCell(row, col++, sPresent, numDataStyle);
+                setNumCell(row, col++, sAbsent, numDataStyle);
+                setNumCell(row, col++, sHalf, numDataStyle);
+                setNumCell(row, col++, sLeave, numDataStyle);
+                setNumCell(row, col++, sOT, numDataStyle);
+
+                // Calculate working days for percentage
+                int workingDays = 0;
+                for (int d = 1; d <= daysInMonth; d++) {
+                    LocalDate date = ym.atDay(d);
+                    if (date.getDayOfWeek().getValue() != 7) workingDays++;
+                }
+                double percent = workingDays > 0 ? ((sPresent + sHalf * 0.5) / workingDays) * 100.0 : 0;
+                setNumCell(row, col, Math.round(percent * 100.0) / 100.0, numDataStyle);
+
+                totalPresent += sPresent;
+                totalAbsent += sAbsent;
+                totalHalf += sHalf;
+                totalLeave += sLeave;
+                totalOT += sOT;
+            }
+
+            // Summary row
+            Row sumRow = sheet.createRow(r);
+            sumRow.setHeightInPoints(20);
+            setStrCell(sumRow, 0, "TOTAL", sumLabelStyle);
+            for (int d = 1; d <= daysInMonth; d++) {
+                setStrCell(sumRow, d, "", sumLabelStyle);
+            }
+            col = daysInMonth + 1;
+            setNumCell(sumRow, col++, totalPresent, sumNumStyle);
+            setNumCell(sumRow, col++, totalAbsent, sumNumStyle);
+            setNumCell(sumRow, col++, totalHalf, sumNumStyle);
+            setNumCell(sumRow, col++, totalLeave, sumNumStyle);
+            setNumCell(sumRow, col++, totalOT, sumNumStyle);
+            setStrCell(sumRow, col, "", sumLabelStyle);
+
+            wb.write(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            log.error("Attendance Excel generation failed for {}/{}", year, month, e);
+            throw new ServiceException("Failed to generate attendance report: " + e.getMessage(), "EXCEL_GENERATION_FAILED");
+        }
+    }
+
+    private XSSFCellStyle makeAttCellStyle(XSSFWorkbook wb, byte[] rgb) {
+        XSSFCellStyle s = wb.createCellStyle();
+        XSSFFont f = wb.createFont();
+        f.setBold(true);
+        f.setFontHeightInPoints((short) 9);
+        f.setFontName("Calibri");
+        s.setFont(f);
+        s.setAlignment(HorizontalAlignment.CENTER);
+        s.setVerticalAlignment(VerticalAlignment.CENTER);
+        s.setFillForegroundColor(new XSSFColor(rgb, null));
+        s.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        applyThinBorder(s);
+        return s;
+    }
+
+    private XSSFCellStyle makeAttNumStyle(XSSFWorkbook wb) {
+        XSSFCellStyle s = wb.createCellStyle();
+        XSSFFont f = wb.createFont();
+        f.setFontHeightInPoints((short) 10);
+        f.setFontName("Calibri");
+        s.setFont(f);
+        s.setAlignment(HorizontalAlignment.CENTER);
+        s.setDataFormat(wb.createDataFormat().getFormat("#,##0.##"));
+        applyThinBorder(s);
+        return s;
     }
 
     // ─── Excel style builders ────────────────────────────────────────────────
