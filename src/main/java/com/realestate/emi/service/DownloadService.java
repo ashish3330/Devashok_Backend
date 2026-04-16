@@ -23,6 +23,7 @@ import com.realestate.emi.entity.SalaryRecord;
 import com.realestate.emi.entity.Staff;
 import com.realestate.emi.entity.StockTransaction;
 import com.realestate.emi.entity.Supplier;
+import com.realestate.emi.entity.SupplierPayment;
 import com.realestate.emi.enums.AttendanceStatus;
 import com.realestate.emi.enums.SalaryStatus;
 import com.realestate.emi.exception.ResourceNotFoundException;
@@ -35,6 +36,7 @@ import com.realestate.emi.repository.PaymentRepository;
 import com.realestate.emi.repository.SalaryRecordRepository;
 import com.realestate.emi.repository.StaffRepository;
 import com.realestate.emi.repository.StockTransactionRepository;
+import com.realestate.emi.repository.SupplierPaymentRepository;
 import com.realestate.emi.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -78,6 +80,7 @@ public class DownloadService {
     private final EmiScheduleRepository emiScheduleRepository;
     private final SalaryRecordRepository salaryRecordRepository;
     private final StockTransactionRepository stockTransactionRepository;
+    private final SupplierPaymentRepository supplierPaymentRepository;
     private final AttendanceRepository attendanceRepository;
     private final StaffRepository staffRepository;
     private final OrganizationRepository organizationRepository;
@@ -150,6 +153,18 @@ public class DownloadService {
         }
         String fileName = "Stock_Transaction_Receipt_" + transactionId + ".pdf";
         return new FileDownload(buildStockTransactionReceiptPdf(txn, org), fileName);
+    }
+
+    @Transactional(readOnly = true)
+    public FileDownload getSupplierPaymentReceipt(Long paymentId) {
+        SupplierPayment payment = supplierPaymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("SupplierPayment", paymentId));
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        if (!payment.getOrganization().getId().equals(orgId)) {
+            throw new ResourceNotFoundException("SupplierPayment", paymentId);
+        }
+        String fileName = "Supplier_Payment_Receipt_" + paymentId + ".pdf";
+        return new FileDownload(buildSupplierPaymentReceiptPdf(payment), fileName);
     }
 
     @Transactional(readOnly = true)
@@ -351,12 +366,15 @@ public class DownloadService {
             Font greenFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD,     11, GREEN_DARK);
             Font footerFont  = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE,   8, TEXT_FOOTER);
 
-            // ── Header ──
+            // ── Header (dynamic from Organization) ──
+            Organization org = deal.getOrganization();
+            String orgName = org != null && org.getName() != null ? org.getName() : "Organization";
+
             Font brandFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, new Color(15, 25, 35));
             Font brandSubFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, new Color(20, 184, 166));
             Font reraFont = FontFactory.getFont(FontFactory.HELVETICA, 8, new Color(130, 130, 130));
 
-            Paragraph brand = new Paragraph("DevAshok Enclave", brandFont);
+            Paragraph brand = new Paragraph(orgName, brandFont);
             brand.setAlignment(Element.ALIGN_CENTER);
             doc.add(brand);
 
@@ -365,10 +383,12 @@ public class DownloadService {
             tagline.setSpacingAfter(2);
             doc.add(tagline);
 
-            Paragraph rera = new Paragraph("RERA Reg. No: MH/NAVI/2021/00342", reraFont);
-            rera.setAlignment(Element.ALIGN_CENTER);
-            rera.setSpacingAfter(4);
-            doc.add(rera);
+            if (org != null && org.getReraNumber() != null && !org.getReraNumber().isBlank()) {
+                Paragraph rera = new Paragraph("RERA Reg. No: " + org.getReraNumber(), reraFont);
+                rera.setAlignment(Element.ALIGN_CENTER);
+                rera.setSpacingAfter(4);
+                doc.add(rera);
+            }
 
             doc.add(new Chunk(new LineSeparator(1.5f, 100, new Color(20, 184, 166), Element.ALIGN_CENTER, -2)));
 
@@ -453,8 +473,11 @@ public class DownloadService {
             // ── Footer ──
             doc.add(new Chunk(new LineSeparator(0.5f, 100, new Color(200, 200, 200), Element.ALIGN_CENTER, -2)));
 
-            Paragraph footerBrand = new Paragraph(
-                    "\nDevAshok Enclave  |  RERA: MH/NAVI/2021/00342", footerFont);
+            StringBuilder footerBrandText = new StringBuilder("\n" + orgName);
+            if (org != null && org.getReraNumber() != null && !org.getReraNumber().isBlank()) {
+                footerBrandText.append("  |  RERA: ").append(org.getReraNumber());
+            }
+            Paragraph footerBrand = new Paragraph(footerBrandText.toString(), footerFont);
             footerBrand.setAlignment(Element.ALIGN_CENTER);
             doc.add(footerBrand);
 
@@ -464,11 +487,24 @@ public class DownloadService {
             footerNote.setSpacingBefore(2);
             doc.add(footerNote);
 
-            Paragraph footerContact = new Paragraph(
-                    "Plot No. 42, Sector 18, Navi Mumbai  |  +91 98765 43210  |  admin@devashokenclave.in", footerFont);
-            footerContact.setAlignment(Element.ALIGN_CENTER);
-            footerContact.setSpacingBefore(2);
-            doc.add(footerContact);
+            if (org != null) {
+                StringBuilder contactParts = new StringBuilder();
+                if (org.getAddress() != null && !org.getAddress().isBlank()) contactParts.append(org.getAddress());
+                if (org.getPhone() != null && !org.getPhone().isBlank()) {
+                    if (!contactParts.isEmpty()) contactParts.append("  |  ");
+                    contactParts.append(org.getPhone());
+                }
+                if (org.getEmail() != null && !org.getEmail().isBlank()) {
+                    if (!contactParts.isEmpty()) contactParts.append("  |  ");
+                    contactParts.append(org.getEmail());
+                }
+                if (!contactParts.isEmpty()) {
+                    Paragraph footerContact = new Paragraph(contactParts.toString(), footerFont);
+                    footerContact.setAlignment(Element.ALIGN_CENTER);
+                    footerContact.setSpacingBefore(2);
+                    doc.add(footerContact);
+                }
+            }
 
             doc.close();
             return out.toByteArray();
@@ -778,6 +814,152 @@ public class DownloadService {
         }
     }
 
+    // ─── Supplier Payment PDF receipt ─────────────────────────────────────────
+
+    private byte[] buildSupplierPaymentReceiptPdf(SupplierPayment payment) {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Document doc = new Document(PageSize.A4, 50, 50, 60, 50);
+            PdfWriter.getInstance(doc, out);
+            doc.open();
+
+            Font sectionFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD,     11, Color.WHITE);
+            Font labelFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD,     10, TEXT_LABEL);
+            Font valueFont   = FontFactory.getFont(FontFactory.HELVETICA,          10, TEXT_DARK);
+            Font greenFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD,     11, GREEN_DARK);
+            Font footerFont  = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE,   8, TEXT_FOOTER);
+            Font subFont     = FontFactory.getFont(FontFactory.HELVETICA,          12, new Color(100, 100, 100));
+
+            // ── Header (dynamic from Organization) ──
+            Font brandFont    = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, new Color(15, 25, 35));
+            Font brandSubFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, new Color(20, 184, 166));
+            Font reraFont     = FontFactory.getFont(FontFactory.HELVETICA, 8, new Color(130, 130, 130));
+
+            Organization org = payment.getOrganization();
+            String orgName = org != null && org.getName() != null ? org.getName() : "Organization";
+            Paragraph brand = new Paragraph(orgName, brandFont);
+            brand.setAlignment(Element.ALIGN_CENTER);
+            doc.add(brand);
+
+            Paragraph tagline = new Paragraph("PREMIUM REAL ESTATE", brandSubFont);
+            tagline.setAlignment(Element.ALIGN_CENTER);
+            tagline.setSpacingAfter(2);
+            doc.add(tagline);
+
+            if (org != null && org.getReraNumber() != null && !org.getReraNumber().isBlank()) {
+                Paragraph rera = new Paragraph("RERA Reg. No: " + org.getReraNumber(), reraFont);
+                rera.setAlignment(Element.ALIGN_CENTER);
+                rera.setSpacingAfter(4);
+                doc.add(rera);
+            }
+
+            doc.add(new Chunk(new LineSeparator(1.5f, 100, new Color(20, 184, 166), Element.ALIGN_CENTER, -2)));
+
+            Paragraph receiptLabel = new Paragraph("\nSUPPLIER PAYMENT RECEIPT", subFont);
+            receiptLabel.setAlignment(Element.ALIGN_CENTER);
+            receiptLabel.setSpacingAfter(6);
+            doc.add(receiptLabel);
+
+            doc.add(new Chunk(new LineSeparator(0.5f, 40, new Color(200, 200, 200), Element.ALIGN_CENTER, -2)));
+
+            // ── Receipt meta (# and date side by side) ──
+            PdfPTable metaTable = new PdfPTable(2);
+            metaTable.setWidthPercentage(100);
+            metaTable.setSpacingBefore(10);
+            metaTable.setSpacingAfter(6);
+            addMetaCell(metaTable, "Receipt #" + payment.getId(), labelFont, Element.ALIGN_LEFT);
+            String paymentDateStr = payment.getPaymentDate() != null
+                    ? payment.getPaymentDate().format(DATE_FMT)
+                    : "-";
+            addMetaCell(metaTable, paymentDateStr, valueFont, Element.ALIGN_RIGHT);
+            doc.add(metaTable);
+
+            // ── Supplier Information ──
+            Supplier supplier = payment.getSupplier();
+            addSectionBanner(doc, "Supplier Information", BLUE_DARK, sectionFont);
+            PdfPTable supTable = new PdfPTable(new float[]{1.5f, 2.5f, 1.5f, 2.5f});
+            supTable.setWidthPercentage(100);
+            supTable.setSpacingAfter(8);
+            addRow4(supTable, "Supplier Name", supplier.getName(),
+                              "Contact Person", supplier.getContactPerson() != null ? supplier.getContactPerson() : "-", labelFont, valueFont);
+            addRow4(supTable, "Phone", supplier.getPhone() != null ? supplier.getPhone() : "-",
+                              "GST Number", supplier.getGstNumber() != null ? supplier.getGstNumber() : "-", labelFont, valueFont);
+            if (supplier.getAddress() != null && !supplier.getAddress().isBlank()) {
+                addWideRow(supTable, "Address", supplier.getAddress(), labelFont, valueFont);
+            }
+            doc.add(supTable);
+
+            // ── Payment Details ──
+            addSectionBanner(doc, "Payment Details", GREEN_DARK, sectionFont);
+            PdfPTable payTable = new PdfPTable(new float[]{1.5f, 2.5f, 1.5f, 2.5f});
+            payTable.setWidthPercentage(100);
+            payTable.setSpacingAfter(8);
+            String methodStr = payment.getPaymentMethod() != null
+                    ? payment.getPaymentMethod().name().replace('_', ' ')
+                    : "-";
+            addRow4Highlighted(payTable, "Amount Paid", fmt(payment.getAmount()),
+                                         "Payment Method", methodStr,
+                                         labelFont, greenFont, valueFont);
+            if (payment.getReferenceNumber() != null && !payment.getReferenceNumber().isBlank()) {
+                addRow4(payTable, "Reference Number", payment.getReferenceNumber(),
+                                  "Payment Date", paymentDateStr, labelFont, valueFont);
+            } else {
+                addRow4(payTable, "Payment Date", paymentDateStr, "", "", labelFont, valueFont);
+            }
+            if (payment.getRemarks() != null && !payment.getRemarks().isBlank()) {
+                addWideRow(payTable, "Remarks", payment.getRemarks(), labelFont, valueFont);
+            }
+            doc.add(payTable);
+
+            // ── Footer ──
+            doc.add(new Chunk(new LineSeparator(0.5f, 100, new Color(200, 200, 200), Element.ALIGN_CENTER, -2)));
+
+            StringBuilder footerBrandText = new StringBuilder("\n" + orgName);
+            if (org != null && org.getReraNumber() != null && !org.getReraNumber().isBlank()) {
+                footerBrandText.append("  |  RERA: ").append(org.getReraNumber());
+            }
+            Paragraph footerBrand = new Paragraph(footerBrandText.toString(), footerFont);
+            footerBrand.setAlignment(Element.ALIGN_CENTER);
+            doc.add(footerBrand);
+
+            Paragraph footerNote = new Paragraph(
+                    "This is a system-generated receipt and does not require a signature.", footerFont);
+            footerNote.setAlignment(Element.ALIGN_CENTER);
+            footerNote.setSpacingBefore(2);
+            doc.add(footerNote);
+
+            if (org != null) {
+                StringBuilder contactParts = new StringBuilder();
+                if (org.getAddress() != null && !org.getAddress().isBlank()) contactParts.append(org.getAddress());
+                if (org.getPhone() != null && !org.getPhone().isBlank()) {
+                    if (!contactParts.isEmpty()) contactParts.append("  |  ");
+                    contactParts.append(org.getPhone());
+                }
+                if (org.getEmail() != null && !org.getEmail().isBlank()) {
+                    if (!contactParts.isEmpty()) contactParts.append("  |  ");
+                    contactParts.append(org.getEmail());
+                }
+                if (!contactParts.isEmpty()) {
+                    Paragraph footerContact = new Paragraph(contactParts.toString(), footerFont);
+                    footerContact.setAlignment(Element.ALIGN_CENTER);
+                    footerContact.setSpacingBefore(2);
+                    doc.add(footerContact);
+                }
+            }
+
+            Paragraph generated = new Paragraph(
+                    "Generated on: " + LocalDateTime.now().format(DATETIME_FMT), footerFont);
+            generated.setAlignment(Element.ALIGN_CENTER);
+            generated.setSpacingBefore(4);
+            doc.add(generated);
+
+            doc.close();
+            return out.toByteArray();
+        } catch (Exception e) {
+            log.error("PDF receipt generation failed for supplier paymentId={}", payment.getId(), e);
+            throw new ServiceException("Failed to generate receipt: " + e.getMessage(), "PDF_GENERATION_FAILED");
+        }
+    }
+
     private void addSectionBanner(Document doc, String text, Color bgColor, Font font) throws DocumentException {
         PdfPTable banner = new PdfPTable(1);
         banner.setWidthPercentage(100);
@@ -877,7 +1059,9 @@ public class DownloadService {
             Row titleRow = sheet.createRow(r++);
             titleRow.setHeightInPoints(28);
             Cell titleCell = titleRow.createCell(0);
-            titleCell.setCellValue("DevAshok Enclave  |  EMI SCHEDULE  |  "
+            String excelOrgName = deal.getOrganization() != null && deal.getOrganization().getName() != null
+                    ? deal.getOrganization().getName() : "Organization";
+            titleCell.setCellValue(excelOrgName + "  |  EMI SCHEDULE  |  "
                     + deal.getCustomer().getFullName() + "  /  " + deal.getPropertyType().getName());
             titleCell.setCellStyle(titleStyle);
             sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 8));
