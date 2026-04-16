@@ -9,8 +9,10 @@ import com.realestate.emi.enums.AttendanceStatus;
 import com.realestate.emi.enums.SalaryStatus;
 import com.realestate.emi.exception.ResourceNotFoundException;
 import com.realestate.emi.exception.ServiceException;
+import com.realestate.emi.entity.SalaryAdvance;
 import com.realestate.emi.repository.AttendanceRepository;
 import com.realestate.emi.repository.OrganizationRepository;
+import com.realestate.emi.repository.SalaryAdvanceRepository;
 import com.realestate.emi.repository.SalaryRecordRepository;
 import com.realestate.emi.repository.StaffRepository;
 import com.realestate.emi.security.TenantContext;
@@ -36,6 +38,7 @@ public class SalaryService {
     private final SalaryRecordRepository salaryRecordRepository;
     private final StaffRepository staffRepository;
     private final AttendanceRepository attendanceRepository;
+    private final SalaryAdvanceRepository salaryAdvanceRepository;
     private final TenantContext tenantContext;
     private final OrganizationRepository organizationRepository;
 
@@ -210,6 +213,10 @@ public class SalaryService {
         SalaryRecord record = salaryRecordRepository.findById(salaryId)
                 .orElseThrow(() -> new ResourceNotFoundException("SalaryRecord", salaryId));
 
+        if (!record.getStaff().getIsActive()) {
+            throw new ServiceException("Cannot pay salary to inactive staff member", "STAFF_INACTIVE");
+        }
+
         if (record.getStatus() == SalaryStatus.PAID) {
             throw new ServiceException("Salary is already fully paid", "SALARY_ALREADY_PAID");
         }
@@ -300,16 +307,31 @@ public class SalaryService {
         return 0;
     }
 
-    // ── Advance deduction processing (graceful — works even without SalaryAdvance entity) ──
+    // ── Advance deduction processing ──
 
     private BigDecimal processAdvanceDeductions(Long staffId) {
-        // SalaryAdvance entity may not exist yet; return 0 gracefully
-        // When Salary Advance module is added, inject SalaryAdvanceRepository and:
-        // 1. Query active advances for staff
-        // 2. For each: deduct min(monthlyDeductionAmount, balanceRemaining)
-        // 3. Update advance.balanceRemaining; if 0, set status = FULLY_DEDUCTED
-        // 4. Return total advance deduction
-        return BigDecimal.ZERO;
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        List<SalaryAdvance> activeAdvances = salaryAdvanceRepository
+                .findByStaffIdAndStatusOrderByAdvanceDateDesc(staffId, "ACTIVE");
+
+        BigDecimal totalDeduction = BigDecimal.ZERO;
+        for (SalaryAdvance advance : activeAdvances) {
+            if (advance.getOrganization() == null || !advance.getOrganization().getId().equals(orgId)) {
+                continue;
+            }
+            BigDecimal monthlyAmount = advance.getMonthlyDeductionAmount() != null
+                    ? advance.getMonthlyDeductionAmount() : advance.getBalanceRemaining();
+            BigDecimal deduction = monthlyAmount.min(advance.getBalanceRemaining());
+
+            advance.setBalanceRemaining(advance.getBalanceRemaining().subtract(deduction));
+            if (advance.getBalanceRemaining().compareTo(BigDecimal.ZERO) <= 0) {
+                advance.setBalanceRemaining(BigDecimal.ZERO);
+                advance.setStatus("FULLY_DEDUCTED");
+            }
+            salaryAdvanceRepository.save(advance);
+            totalDeduction = totalDeduction.add(deduction);
+        }
+        return totalDeduction;
     }
 
     private SalaryRecordResponse toResponse(SalaryRecord record) {

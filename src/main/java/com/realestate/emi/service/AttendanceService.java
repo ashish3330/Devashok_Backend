@@ -56,6 +56,10 @@ public class AttendanceService {
 
     @Transactional
     public AttendanceResponse markAttendance(AttendanceRequest request) {
+        if (request.getDate().isAfter(LocalDate.now())) {
+            throw new ServiceException("Cannot mark attendance for future dates", "FUTURE_DATE");
+        }
+
         Staff staff = staffRepository.findById(request.getStaffId())
                 .orElseThrow(() -> new ResourceNotFoundException("Staff", request.getStaffId()));
 
@@ -125,6 +129,10 @@ public class AttendanceService {
 
     @Transactional
     public AttendanceResponse updateAttendance(Long id, AttendanceRequest request) {
+        if (request.getOvertimeHours() != null && request.getOvertimeHours() < 0) {
+            throw new ServiceException("Overtime hours cannot be negative", "INVALID_OVERTIME");
+        }
+
         Attendance attendance = attendanceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Attendance", id));
 

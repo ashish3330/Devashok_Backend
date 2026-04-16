@@ -64,6 +64,15 @@ public class PaymentService {
                     "INVALID_PAYMENT_METHOD");
         }
 
+        // 3b. Prevent overpayment
+        BigDecimal totalDue = deal.getTotalPayableAfterDeposit();
+        BigDecimal totalPaid = paymentRepository.sumPaymentsByDealId(dealId);
+        BigDecimal outstanding = totalDue.subtract(totalPaid);
+        if (request.getAmount().compareTo(outstanding) > 0) {
+            throw new ServiceException("Payment amount (\u20B9" + request.getAmount() +
+                    ") exceeds outstanding balance (\u20B9" + outstanding + ")", "OVERPAYMENT");
+        }
+
         // 4. Get the current admin from SecurityContext
         String adminUsername = getAdminUsername();
 

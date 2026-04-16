@@ -150,6 +150,10 @@ public class PurchaseOrderService {
         PurchaseOrder po = poRepository.findByIdAndOrganizationId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", id));
 
+        if (po.getStatus() == PurchaseOrderStatus.CANCELLED) {
+            throw new ServiceException("Cannot receive items on a cancelled purchase order", "PO_CANCELLED");
+        }
+
         if (po.getStatus() != PurchaseOrderStatus.APPROVED && po.getStatus() != PurchaseOrderStatus.PARTIALLY_RECEIVED) {
             throw new ServiceException("Only APPROVED or PARTIALLY_RECEIVED purchase orders can receive items", "INVALID_PO_STATUS");
         }

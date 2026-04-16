@@ -259,6 +259,9 @@ public class DealService {
         if (deal.getOrganization() != null && !deal.getOrganization().getId().equals(orgId)) {
             throw new ResourceNotFoundException("Deal", dealId);
         }
+        if (deal.getStatus() == DealStatus.COMPLETED) {
+            throw new ServiceException("Cannot change status of a completed deal", "DEAL_COMPLETED");
+        }
         deal.setStatus(request.getStatus());
         dealRepository.save(deal);
         log.info("Changed deal {} status to {}", dealId, request.getStatus());

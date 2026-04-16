@@ -1,7 +1,9 @@
 package com.realestate.emi.dto.request;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -18,7 +20,11 @@ public class PurchaseOrderReceiveRequest {
     @Getter
     @Setter
     public static class ReceiveItem {
+        @NotNull(message = "Item ID is required")
         private Long itemId;
+
+        @NotNull(message = "Received quantity is required")
+        @DecimalMin(value = "0.01", message = "Received quantity must be greater than 0")
         private java.math.BigDecimal receivedQuantity;
     }
 }

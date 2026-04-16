@@ -84,4 +84,7 @@ public class Deal extends BaseAuditEntity {
     @OneToMany(mappedBy = "deal", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     @Builder.Default
     private List<Payment> payments = new ArrayList<>();
+
+    @Version
+    private Long version;
 }

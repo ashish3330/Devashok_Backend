@@ -34,8 +34,21 @@ public class CustomerService {
         log.debug("Fetching all customers");
         Long orgId = tenantContext.getCurrentOrganizationId();
         return customerRepository.findByOrganizationIdOrderByFullNameAsc(orgId).stream()
-                .map(customerMapper::toResponse)
+                .map(customer -> {
+                    CustomerResponse resp = customerMapper.toResponse(customer);
+                    maskSensitiveFields(resp);
+                    return resp;
+                })
                 .collect(Collectors.toList());
+    }
+
+    private void maskSensitiveFields(CustomerResponse resp) {
+        if (resp.getAadharNumber() != null && resp.getAadharNumber().length() == 12) {
+            resp.setAadharNumber("XXXX-XXXX-" + resp.getAadharNumber().substring(8));
+        }
+        if (resp.getPanNumber() != null && resp.getPanNumber().length() == 10) {
+            resp.setPanNumber("XXXXXX" + resp.getPanNumber().substring(6));
+        }
     }
 
     @Transactional(readOnly = true)

@@ -274,6 +274,15 @@ public class StaffService {
         Long orgId = tenantContext.getCurrentOrganizationId();
         BigDecimal outstandingAdvance = salaryAdvanceRepository.sumActiveBalanceByStaff(staff.getId(), orgId);
 
+        // Mask sensitive fields
+        String maskedAadhar = staff.getAadharNumber() != null && staff.getAadharNumber().length() == 12
+                ? "XXXX-XXXX-" + staff.getAadharNumber().substring(8) : staff.getAadharNumber();
+        String maskedPan = staff.getPanNumber() != null && staff.getPanNumber().length() == 10
+                ? "XXXXXX" + staff.getPanNumber().substring(6) : staff.getPanNumber();
+        String maskedBankAccount = staff.getBankAccountNumber() != null && staff.getBankAccountNumber().length() > 4
+                ? "XXXX..." + staff.getBankAccountNumber().substring(staff.getBankAccountNumber().length() - 4)
+                : staff.getBankAccountNumber();
+
         return StaffResponse.builder()
                 .id(staff.getId())
                 .employeeCode(staff.getEmployeeCode())
@@ -286,10 +295,10 @@ public class StaffService {
                 .monthlySalary(staff.getMonthlySalary())
                 .joiningDate(staff.getJoiningDate())
                 .exitDate(staff.getExitDate())
-                .bankAccountNumber(staff.getBankAccountNumber())
+                .bankAccountNumber(maskedBankAccount)
                 .ifscCode(staff.getIfscCode())
-                .aadharNumber(staff.getAadharNumber())
-                .panNumber(staff.getPanNumber())
+                .aadharNumber(maskedAadhar)
+                .panNumber(maskedPan)
                 .department(staff.getDepartment())
                 .designation(staff.getDesignation())
                 .emergencyContactName(staff.getEmergencyContactName())

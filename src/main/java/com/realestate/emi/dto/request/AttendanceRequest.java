@@ -2,6 +2,7 @@ package com.realestate.emi.dto.request;
 
 import com.realestate.emi.enums.AttendanceStatus;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -16,6 +17,7 @@ public class AttendanceRequest {
     private Long staffId;
 
     @NotNull(message = "Date is required")
+    @PastOrPresent(message = "Cannot mark attendance for future dates")
     private LocalDate date;
 
     @NotNull(message = "Status is required")

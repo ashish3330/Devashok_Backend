@@ -1,8 +1,6 @@
 package com.realestate.emi.dto.request;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -23,6 +21,7 @@ public class CustomerRequest {
     private String email;
 
     @NotBlank(message = "Address is required")
+    @Size(max = 500)
     private String address;
 
     @Pattern(regexp = "^\\d{12}$", message = "Aadhar number must be exactly 12 digits")
