@@ -3,15 +3,20 @@ package com.realestate.emi.controller;
 import com.realestate.emi.dto.request.SalaryPaymentRequest;
 import com.realestate.emi.dto.response.ApiResponse;
 import com.realestate.emi.dto.response.SalaryRecordResponse;
+import com.realestate.emi.service.DownloadService;
 import com.realestate.emi.service.SalaryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Slf4j
@@ -22,6 +27,7 @@ import java.util.List;
 public class SalaryController {
 
     private final SalaryService salaryService;
+    private final DownloadService downloadService;
 
     @PostMapping("/generate")
     @PreAuthorize("hasRole('ADMIN')")
@@ -58,5 +64,20 @@ public class SalaryController {
     public ResponseEntity<ApiResponse<List<SalaryRecordResponse>>> getPendingSalaries() {
         return ResponseEntity.ok(ApiResponse.success(
                 salaryService.getPendingSalaries(), "Pending salary records retrieved successfully"));
+    }
+
+    @GetMapping("/{salaryId}/slip")
+    @PreAuthorize("hasAnyRole('ADMIN','VIEWER')")
+    public ResponseEntity<byte[]> downloadSalarySlip(@PathVariable Long salaryId) {
+        DownloadService.FileDownload file = downloadService.getSalarySlip(salaryId);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentDisposition(
+                ContentDisposition.attachment()
+                        .filename(file.fileName(), StandardCharsets.UTF_8)
+                        .build());
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(file.content());
     }
 }
