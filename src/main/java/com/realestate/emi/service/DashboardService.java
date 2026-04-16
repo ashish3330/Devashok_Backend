@@ -2,17 +2,14 @@ package com.realestate.emi.service;
 
 import com.realestate.emi.dto.response.*;
 import com.realestate.emi.entity.EmiSchedule;
+import com.realestate.emi.entity.SalaryRecord;
+import com.realestate.emi.entity.Staff;
+import com.realestate.emi.entity.Supplier;
 import com.realestate.emi.enums.DealStatus;
 import com.realestate.emi.enums.EmiStatus;
-import com.realestate.emi.repository.CustomerRepository;
-import com.realestate.emi.repository.DealRepository;
-import com.realestate.emi.repository.EmiScheduleRepository;
-import com.realestate.emi.repository.MaterialRepository;
-import com.realestate.emi.repository.OrganizationRepository;
-import com.realestate.emi.repository.PaymentRepository;
-import com.realestate.emi.repository.SalaryRecordRepository;
-import com.realestate.emi.repository.StaffRepository;
-import com.realestate.emi.repository.StockTransactionRepository;
+import com.realestate.emi.enums.MaterialCategory;
+import com.realestate.emi.enums.TransactionType;
+import com.realestate.emi.repository.*;
 import com.realestate.emi.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,9 +21,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.TextStyle;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -42,6 +37,10 @@ public class DashboardService {
     private final StaffRepository staffRepository;
     private final MaterialRepository materialRepository;
     private final StockTransactionRepository stockTransactionRepository;
+    private final SupplierPaymentRepository supplierPaymentRepository;
+    private final SupplierRepository supplierRepository;
+    private final SalaryAdvanceRepository salaryAdvanceRepository;
+    private final AttendanceRepository attendanceRepository;
     private final TenantContext tenantContext;
     private final OrganizationRepository organizationRepository;
 
@@ -103,42 +102,94 @@ public class DashboardService {
     // ── Expense dashboard ────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
-    public ExpenseDashboardResponse getExpenseDashboard() {
-        log.debug("Building expense dashboard");
+    public ExpenseDashboardResponse getExpenseDashboard(int year, int month) {
+        log.debug("Building expense dashboard for {}/{}", year, month);
         Long orgId = tenantContext.getCurrentOrganizationId();
-        LocalDate today = LocalDate.now();
-        int year = today.getYear();
-        int month = today.getMonthValue();
 
-        // Salary data
-        BigDecimal totalMonthlySalaryBudget = staffRepository.sumTotalMonthlySalaryByOrg(orgId);
-        BigDecimal currentMonthPaid = salaryRecordRepository.sumPaidByMonthAndOrg(year, month, orgId);
-        BigDecimal currentMonthNet = salaryRecordRepository.sumNetSalaryByMonthAndOrg(year, month, orgId);
-        BigDecimal currentMonthPending = currentMonthNet.subtract(currentMonthPaid);
-        if (currentMonthPending.compareTo(BigDecimal.ZERO) < 0) currentMonthPending = BigDecimal.ZERO;
-        long totalActiveStaff = staffRepository.findByOrganizationIdAndIsActiveTrueOrderByFullNameAsc(orgId).size();
-        long pendingSalaryCount = salaryRecordRepository.findByStatusAndOrg(com.realestate.emi.enums.SalaryStatus.PENDING, orgId).size();
+        // ── Salary data ─────────────────────────────────────────────────────
+        BigDecimal totalMonthlySalaryBudget = coalesce(staffRepository.sumTotalMonthlySalaryByOrg(orgId));
+        BigDecimal grossPayroll = coalesce(salaryRecordRepository.sumGrossPayrollByMonthAndOrg(year, month, orgId));
+        BigDecimal netPayroll = coalesce(salaryRecordRepository.sumNetSalaryByMonthAndOrg(year, month, orgId));
+        BigDecimal totalSalaryPaid = coalesce(salaryRecordRepository.sumPaidByMonthAndOrg(year, month, orgId));
+        BigDecimal pendingSalary = netPayroll.subtract(totalSalaryPaid);
+        if (pendingSalary.compareTo(BigDecimal.ZERO) < 0) pendingSalary = BigDecimal.ZERO;
+        BigDecimal overtimePay = coalesce(salaryRecordRepository.sumOvertimePayByMonthAndOrg(year, month, orgId));
+        BigDecimal advancesGiven = coalesce(salaryAdvanceRepository.sumAdvancesGivenByMonthAndOrg(year, month, orgId));
 
-        // Material data
-        BigDecimal totalInventoryValue = materialRepository.calculateTotalInventoryValueByOrg(orgId);
-        BigDecimal materialExpenseThisMonth = stockTransactionRepository.sumOutwardCostByMonthAndOrg(year, month, orgId);
+        List<Staff> activeStaff = staffRepository.findByOrganizationIdAndIsActiveTrueOrderByFullNameAsc(orgId);
+        int staffCount = activeStaff.size();
+        BigDecimal avgSalary = staffCount > 0
+                ? totalMonthlySalaryBudget.divide(BigDecimal.valueOf(staffCount), 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        long pendingSalaryCount = salaryRecordRepository.findByStatusAndOrg(
+                com.realestate.emi.enums.SalaryStatus.PENDING, orgId).size();
+
+        // ── Material / Inventory data ───────────────────────────────────────
+        BigDecimal totalPurchases = coalesce(stockTransactionRepository.sumInwardCostByMonthAndOrg(year, month, orgId));
+        BigDecimal materialOutward = coalesce(stockTransactionRepository.sumOutwardCostByMonthAndOrg(year, month, orgId));
+        BigDecimal totalWastage = coalesce(stockTransactionRepository.sumCostByTypeAndMonthAndOrg(
+                TransactionType.ADJUSTMENT, year, month, orgId));
+        BigDecimal totalInventoryValue = coalesce(materialRepository.calculateTotalInventoryValueByOrg(orgId));
         long totalMaterials = materialRepository.findByOrganizationIdAndIsActiveTrueOrderByNameAsc(orgId).size();
         long lowStockAlerts = materialRepository.findLowStockMaterialsByOrg(orgId).size();
         long outOfStockCount = materialRepository.findOutOfStockMaterialsByOrg(orgId).size();
 
-        BigDecimal totalExpensesThisMonth = currentMonthPaid.add(materialExpenseThisMonth);
+        // Supplier payments
+        BigDecimal supplierPaymentsMonth = coalesce(supplierPaymentRepository.sumPaymentsByMonthAndOrg(year, month, orgId));
+        BigDecimal totalInwardCostAll = coalesce(stockTransactionRepository.sumTotalInwardCostByOrg(orgId));
+        BigDecimal totalPaidToSuppliers = coalesce(supplierPaymentRepository.sumTotalPaidByOrg(orgId));
+        BigDecimal outstandingSupplierBalance = totalInwardCostAll.subtract(totalPaidToSuppliers);
+        if (outstandingSupplierBalance.compareTo(BigDecimal.ZERO) < 0) outstandingSupplierBalance = BigDecimal.ZERO;
 
-        // Build 6-month trend
-        List<ExpenseDashboardResponse.MonthlyExpenseItem> trend = new ArrayList<>();
+        // Total expenses
+        BigDecimal totalExpenses = totalSalaryPaid.add(totalPurchases).add(supplierPaymentsMonth);
+        BigDecimal salaryExpenses = totalSalaryPaid;
+        BigDecimal materialExpenses = totalPurchases;
+
+        // ── Previous month comparison ───────────────────────────────────────
+        YearMonth prevYm = YearMonth.of(year, month).minusMonths(1);
+        BigDecimal prevSalary = coalesce(salaryRecordRepository.sumPaidByMonthAndOrg(prevYm.getYear(), prevYm.getMonthValue(), orgId));
+        BigDecimal prevMaterial = coalesce(stockTransactionRepository.sumInwardCostByMonthAndOrg(prevYm.getYear(), prevYm.getMonthValue(), orgId));
+        BigDecimal prevSupplier = coalesce(supplierPaymentRepository.sumPaymentsByMonthAndOrg(prevYm.getYear(), prevYm.getMonthValue(), orgId));
+        BigDecimal previousMonthTotal = prevSalary.add(prevMaterial).add(prevSupplier);
+        double monthOverMonthChange = previousMonthTotal.compareTo(BigDecimal.ZERO) == 0 ? 0.0
+                : totalExpenses.subtract(previousMonthTotal)
+                        .multiply(BigDecimal.valueOf(100))
+                        .divide(previousMonthTotal, 2, RoundingMode.HALF_UP)
+                        .doubleValue();
+
+        // ── Category breakdown ──────────────────────────────────────────────
+        List<Object[]> catRows = stockTransactionRepository.sumInwardCostByCategoryAndMonthAndOrg(year, month, orgId);
+        List<ExpenseDashboardResponse.CategoryExpense> categoryBreakdown = catRows.stream().map(r -> {
+            String catName = r[0] != null ? r[0].toString() : "OTHER";
+            BigDecimal amt = coalesce((BigDecimal) r[1]);
+            return ExpenseDashboardResponse.CategoryExpense.builder()
+                    .category(catName).amount(amt).build();
+        }).collect(Collectors.toList());
+
+        // ── 6-month trends ──────────────────────────────────────────────────
+        List<ExpenseDashboardResponse.MonthlyExpenseTrend> trends = new ArrayList<>();
+        List<ExpenseDashboardResponse.MonthlyExpenseItem> legacyTrend = new ArrayList<>();
         YearMonth current = YearMonth.of(year, month);
         for (int i = 5; i >= 0; i--) {
             YearMonth ym = current.minusMonths(i);
             int y = ym.getYear();
             int m = ym.getMonthValue();
             BigDecimal salaryExp = coalesce(salaryRecordRepository.sumPaidByMonthAndOrg(y, m, orgId));
-            BigDecimal materialExp = coalesce(stockTransactionRepository.sumOutwardCostByMonthAndOrg(y, m, orgId));
-            String monthLabel = ym.getMonth().getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH) + " " + y;
-            trend.add(ExpenseDashboardResponse.MonthlyExpenseItem.builder()
+            BigDecimal materialExp = coalesce(stockTransactionRepository.sumInwardCostByMonthAndOrg(y, m, orgId));
+            BigDecimal supplierExp = coalesce(supplierPaymentRepository.sumPaymentsByMonthAndOrg(y, m, orgId));
+            String monthLabel = ym.getMonth().getDisplayName(TextStyle.SHORT, Locale.ENGLISH) + " " + y;
+
+            trends.add(ExpenseDashboardResponse.MonthlyExpenseTrend.builder()
+                    .year(y).month(m).monthLabel(monthLabel)
+                    .salaryExpense(salaryExp)
+                    .materialExpense(materialExp)
+                    .supplierPayment(supplierExp)
+                    .totalExpense(salaryExp.add(materialExp).add(supplierExp))
+                    .build());
+
+            legacyTrend.add(ExpenseDashboardResponse.MonthlyExpenseItem.builder()
                     .year(y).month(m).monthLabel(monthLabel)
                     .salaryExpense(salaryExp)
                     .materialExpense(materialExp)
@@ -146,19 +197,176 @@ public class DashboardService {
                     .build());
         }
 
+        // ── Top 5 staff by salary ───────────────────────────────────────────
+        List<SalaryRecord> salaryRecords = salaryRecordRepository
+                .findByYearAndMonthAndStaffOrganizationIdOrderByNetSalaryDesc(year, month, orgId);
+        List<ExpenseDashboardResponse.TopExpenseItem> topStaff = salaryRecords.stream()
+                .limit(5)
+                .map(sr -> ExpenseDashboardResponse.TopExpenseItem.builder()
+                        .name(sr.getStaff() != null ? sr.getStaff().getFullName() : "Unknown")
+                        .amount(sr.getNetSalary())
+                        .subtitle(sr.getStaff() != null && sr.getStaff().getStaffRole() != null
+                                ? sr.getStaff().getStaffRole().getName() : "")
+                        .build())
+                .collect(Collectors.toList());
+
+        // ── Top 5 materials by spend ────────────────────────────────────────
+        List<Object[]> matRows = stockTransactionRepository.findTopMaterialsBySpendAndMonthAndOrg(year, month, orgId);
+        List<ExpenseDashboardResponse.TopExpenseItem> topMaterials = matRows.stream()
+                .limit(5)
+                .map(r -> ExpenseDashboardResponse.TopExpenseItem.builder()
+                        .name((String) r[0])
+                        .amount(coalesce((BigDecimal) r[1]))
+                        .subtitle("Purchase cost")
+                        .build())
+                .collect(Collectors.toList());
+
+        // ── Top 5 suppliers by payment ──────────────────────────────────────
+        List<Object[]> supRows = supplierPaymentRepository.findTopSuppliersByPaymentAndMonthAndOrg(year, month, orgId);
+        List<ExpenseDashboardResponse.TopExpenseItem> topSuppliers = supRows.stream()
+                .limit(5)
+                .map(r -> ExpenseDashboardResponse.TopExpenseItem.builder()
+                        .name((String) r[1])
+                        .amount(coalesce((BigDecimal) r[2]))
+                        .subtitle("Payments made")
+                        .build())
+                .collect(Collectors.toList());
+
         return ExpenseDashboardResponse.builder()
-                .totalMonthlySalaryBudget(coalesce(totalMonthlySalaryBudget))
-                .currentMonthSalaryPaid(coalesce(currentMonthPaid))
-                .currentMonthSalaryPending(currentMonthPending)
-                .totalActiveStaff(totalActiveStaff)
-                .pendingSalaryCount(pendingSalaryCount)
-                .totalInventoryValue(coalesce(totalInventoryValue))
-                .totalMaterialExpenseThisMonth(coalesce(materialExpenseThisMonth))
-                .totalMaterials(totalMaterials)
+                // New summary fields
+                .totalExpenses(totalExpenses)
+                .salaryExpenses(salaryExpenses)
+                .materialExpenses(materialExpenses)
+                .supplierPayments(supplierPaymentsMonth)
+                .previousMonthTotal(previousMonthTotal)
+                .monthOverMonthChange(monthOverMonthChange)
+                // Salary breakdown
+                .staffCount(staffCount)
+                .grossPayroll(grossPayroll)
+                .netPayroll(netPayroll)
+                .totalSalaryPaid(totalSalaryPaid)
+                .pendingSalary(pendingSalary)
+                .averageSalary(avgSalary)
+                .totalOvertimePay(overtimePay)
+                .totalAdvancesGiven(advancesGiven)
+                // Material breakdown
+                .totalPurchases(totalPurchases)
+                .totalWastage(totalWastage)
+                .totalDamage(BigDecimal.ZERO)
+                .outstandingSupplierBalance(outstandingSupplierBalance)
                 .lowStockAlerts(lowStockAlerts)
                 .outOfStockCount(outOfStockCount)
-                .totalExpensesThisMonth(totalExpensesThisMonth)
-                .expenseTrend(trend)
+                .categoryBreakdown(categoryBreakdown)
+                // Trends
+                .trends(trends)
+                // Top items
+                .topStaffBySalary(topStaff)
+                .topMaterialsBySpend(topMaterials)
+                .topSuppliersByPayment(topSuppliers)
+                // Legacy fields for backward compatibility
+                .totalMonthlySalaryBudget(totalMonthlySalaryBudget)
+                .currentMonthSalaryPaid(totalSalaryPaid)
+                .currentMonthSalaryPending(pendingSalary)
+                .totalActiveStaff((long) staffCount)
+                .pendingSalaryCount(pendingSalaryCount)
+                .totalInventoryValue(totalInventoryValue)
+                .totalMaterialExpenseThisMonth(materialOutward)
+                .totalMaterials(totalMaterials)
+                .totalExpensesThisMonth(totalExpenses)
+                .expenseTrend(legacyTrend)
+                .build();
+    }
+
+    // ── Staff analytics ─────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public StaffAnalyticsResponse getStaffAnalytics() {
+        log.debug("Building staff analytics");
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        LocalDate today = LocalDate.now();
+        int year = today.getYear();
+        int month = today.getMonthValue();
+
+        List<Staff> allStaff = staffRepository.findByOrganizationIdOrderByFullNameAsc(orgId);
+        List<Staff> activeStaff = allStaff.stream().filter(s -> Boolean.TRUE.equals(s.getIsActive())).collect(Collectors.toList());
+        List<Staff> inactiveStaff = allStaff.stream().filter(s -> !Boolean.TRUE.equals(s.getIsActive())).collect(Collectors.toList());
+
+        // Staff by department
+        Map<String, Integer> byDepartment = new LinkedHashMap<>();
+        for (Staff s : activeStaff) {
+            String dept = s.getDepartment() != null && !s.getDepartment().isBlank()
+                    ? s.getDepartment() : "Unassigned";
+            byDepartment.merge(dept, 1, Integer::sum);
+        }
+
+        // Staff by employment type
+        Map<String, Integer> byEmploymentType = new LinkedHashMap<>();
+        for (Staff s : activeStaff) {
+            String type = s.getEmploymentType() != null
+                    ? s.getEmploymentType().name() : "PERMANENT";
+            byEmploymentType.merge(type, 1, Integer::sum);
+        }
+
+        BigDecimal totalMonthlyPayroll = coalesce(staffRepository.sumTotalMonthlySalaryByOrg(orgId));
+
+        // Average attendance rate this month
+        YearMonth ym = YearMonth.of(year, month);
+        int workingDaysInMonth = ym.lengthOfMonth(); // Simplified approximation
+        BigDecimal totalAttendanceRate = BigDecimal.ZERO;
+        int staffWithAttendance = 0;
+        for (Staff s : activeStaff) {
+            long presentDays = attendanceRepository.countByStaffAndStatusAndMonth(
+                    s.getId(), com.realestate.emi.enums.AttendanceStatus.PRESENT, year, month);
+            long halfDays = attendanceRepository.countByStaffAndStatusAndMonth(
+                    s.getId(), com.realestate.emi.enums.AttendanceStatus.HALF_DAY, year, month);
+            double effective = presentDays + (halfDays * 0.5);
+            if (workingDaysInMonth > 0) {
+                double rate = (effective / workingDaysInMonth) * 100;
+                totalAttendanceRate = totalAttendanceRate.add(BigDecimal.valueOf(rate));
+                staffWithAttendance++;
+            }
+        }
+        BigDecimal avgAttendanceRate = staffWithAttendance > 0
+                ? totalAttendanceRate.divide(BigDecimal.valueOf(staffWithAttendance), 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        // Advances
+        int advancesOutstanding = salaryAdvanceRepository.countActiveByOrg(orgId);
+        BigDecimal totalAdvanceAmount = coalesce(salaryAdvanceRepository.sumActiveBalanceByOrg(orgId));
+
+        // Department summary
+        List<StaffAnalyticsResponse.DepartmentSummary> deptSummary = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : byDepartment.entrySet()) {
+            String dept = entry.getKey();
+            int count = entry.getValue();
+            BigDecimal totalSalary = activeStaff.stream()
+                    .filter(s -> dept.equals(s.getDepartment() != null && !s.getDepartment().isBlank()
+                            ? s.getDepartment() : "Unassigned"))
+                    .map(Staff::getMonthlySalary)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal avgSal = count > 0
+                    ? totalSalary.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+            deptSummary.add(StaffAnalyticsResponse.DepartmentSummary.builder()
+                    .department(dept)
+                    .count(count)
+                    .totalSalary(totalSalary)
+                    .averageSalary(avgSal)
+                    .build());
+        }
+
+        return StaffAnalyticsResponse.builder()
+                .totalStaff(allStaff.size())
+                .activeStaff(activeStaff.size())
+                .inactiveStaff(inactiveStaff.size())
+                .staffByDepartment(byDepartment)
+                .staffByEmploymentType(byEmploymentType)
+                .totalMonthlyPayroll(totalMonthlyPayroll)
+                .averageAttendanceRate(avgAttendanceRate)
+                .totalAdvancesOutstanding(advancesOutstanding)
+                .totalAdvanceAmount(totalAdvanceAmount)
+                .departmentSummary(deptSummary)
                 .build();
     }
 

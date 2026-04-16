@@ -6,6 +6,7 @@ import com.realestate.emi.dto.response.DashboardResponse;
 import com.realestate.emi.dto.response.ExpenseDashboardResponse;
 import com.realestate.emi.dto.response.MonthlyAnalyticsResponse;
 import com.realestate.emi.dto.response.NotificationResponse;
+import com.realestate.emi.dto.response.StaffAnalyticsResponse;
 import com.realestate.emi.service.DashboardService;
 import com.realestate.emi.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -49,9 +50,18 @@ public class DashboardController {
     }
 
     @GetMapping("/expenses")
-    public ResponseEntity<ApiResponse<ExpenseDashboardResponse>> getExpenseDashboard() {
-        ExpenseDashboardResponse response = dashboardService.getExpenseDashboard();
+    public ResponseEntity<ApiResponse<ExpenseDashboardResponse>> getExpenseDashboard(
+            @RequestParam(defaultValue = "0") int year,
+            @RequestParam(defaultValue = "0") int month) {
+        YearMonth ym = (year == 0 || month == 0) ? YearMonth.now() : YearMonth.of(year, month);
+        ExpenseDashboardResponse response = dashboardService.getExpenseDashboard(ym.getYear(), ym.getMonthValue());
         return ResponseEntity.ok(ApiResponse.success(response, "Expense dashboard retrieved successfully"));
+    }
+
+    @GetMapping("/staff-analytics")
+    public ResponseEntity<ApiResponse<StaffAnalyticsResponse>> getStaffAnalytics() {
+        StaffAnalyticsResponse response = dashboardService.getStaffAnalytics();
+        return ResponseEntity.ok(ApiResponse.success(response, "Staff analytics retrieved successfully"));
     }
 
     @GetMapping("/notifications")

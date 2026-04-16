@@ -40,4 +40,15 @@ public interface SalaryRecordRepository extends JpaRepository<SalaryRecord, Long
     List<SalaryRecord> findByStatusAndOrg(@Param("status") SalaryStatus status, @Param("orgId") Long orgId);
 
     List<SalaryRecord> findByStaffIdAndStaffOrganizationIdOrderByYearDescMonthDesc(Long staffId, Long orgId);
+
+    @Query("SELECT COALESCE(SUM(sr.baseSalary), 0) FROM SalaryRecord sr WHERE sr.year = :year AND sr.month = :month AND sr.staff.organization.id = :orgId")
+    BigDecimal sumGrossPayrollByMonthAndOrg(@Param("year") int year, @Param("month") int month, @Param("orgId") Long orgId);
+
+    @Query("SELECT COALESCE(SUM(sr.overtimePay), 0) FROM SalaryRecord sr WHERE sr.year = :year AND sr.month = :month AND sr.staff.organization.id = :orgId")
+    BigDecimal sumOvertimePayByMonthAndOrg(@Param("year") int year, @Param("month") int month, @Param("orgId") Long orgId);
+
+    List<SalaryRecord> findByYearAndMonthAndStaffOrganizationIdOrderByNetSalaryDesc(Integer year, Integer month, Long orgId);
+
+    @Query("SELECT COUNT(sr) FROM SalaryRecord sr WHERE sr.year = :year AND sr.month = :month AND sr.staff.organization.id = :orgId")
+    long countByMonthAndOrg(@Param("year") int year, @Param("month") int month, @Param("orgId") Long orgId);
 }
