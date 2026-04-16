@@ -12,6 +12,8 @@ public interface StockTransactionMapper {
 
     @Mapping(source = "material.id", target = "materialId")
     @Mapping(source = "material.name", target = "materialName")
+    @Mapping(source = "supplier.id", target = "supplierId")
+    @Mapping(source = "supplier.name", target = "supplierName")
     @Mapping(source = "deal.id", target = "dealId")
     @Mapping(source = "installmentPhase.id", target = "installmentPhaseId")
     StockTransactionResponse toResponse(StockTransaction transaction);

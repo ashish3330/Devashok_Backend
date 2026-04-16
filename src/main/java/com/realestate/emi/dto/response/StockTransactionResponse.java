@@ -20,6 +20,8 @@ public class StockTransactionResponse {
     private BigDecimal quantity;
     private BigDecimal unitCostAtTime;
     private BigDecimal totalCost;
+    private Long supplierId;
+    private String supplierName;
     private Long dealId;
     private Long installmentPhaseId;
     private String referenceNumber;

@@ -28,6 +28,8 @@ public class StockTransactionRequest {
 
     private Long installmentPhaseId;
 
+    private Long supplierId;
+
     private String referenceNumber;
 
     private String remarks;

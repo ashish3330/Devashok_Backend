@@ -1,0 +1,49 @@
+package com.realestate.emi.controller;
+
+import com.realestate.emi.dto.request.SupplierPaymentRequest;
+import com.realestate.emi.dto.response.ApiResponse;
+import com.realestate.emi.dto.response.SupplierPaymentResponse;
+import com.realestate.emi.dto.response.SupplierPaymentSummaryResponse;
+import com.realestate.emi.service.SupplierPaymentService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/inventory/suppliers/{supplierId}/payments")
+@RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN','SUPERVISOR')")
+public class SupplierPaymentController {
+
+    private final SupplierPaymentService supplierPaymentService;
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<SupplierPaymentResponse>> recordPayment(
+            @PathVariable Long supplierId,
+            @Valid @RequestBody SupplierPaymentRequest request) {
+        SupplierPaymentResponse payment = supplierPaymentService.recordPayment(supplierId, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(payment, "Supplier payment recorded successfully"));
+    }
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<SupplierPaymentResponse>>> getPayments(
+            @PathVariable Long supplierId) {
+        List<SupplierPaymentResponse> payments = supplierPaymentService.getPaymentsBySupplier(supplierId);
+        return ResponseEntity.ok(ApiResponse.success(payments, "Supplier payments retrieved successfully"));
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResponse<SupplierPaymentSummaryResponse>> getPaymentSummary(
+            @PathVariable Long supplierId) {
+        SupplierPaymentSummaryResponse summary = supplierPaymentService.getPaymentSummary(supplierId);
+        return ResponseEntity.ok(ApiResponse.success(summary, "Supplier payment summary retrieved successfully"));
+    }
+}

@@ -7,6 +7,7 @@ import com.realestate.emi.entity.InstallmentPhase;
 import com.realestate.emi.entity.Material;
 import com.realestate.emi.entity.Organization;
 import com.realestate.emi.entity.StockTransaction;
+import com.realestate.emi.entity.Supplier;
 import com.realestate.emi.enums.TransactionType;
 import com.realestate.emi.exception.ResourceNotFoundException;
 import com.realestate.emi.exception.ServiceException;
@@ -16,6 +17,7 @@ import com.realestate.emi.repository.InstallmentPhaseRepository;
 import com.realestate.emi.repository.MaterialRepository;
 import com.realestate.emi.repository.OrganizationRepository;
 import com.realestate.emi.repository.StockTransactionRepository;
+import com.realestate.emi.repository.SupplierRepository;
 import com.realestate.emi.security.TenantContext;
 import com.realestate.emi.security.CustomPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +44,7 @@ public class StockTransactionService {
     private final StockTransactionMapper transactionMapper;
     private final TenantContext tenantContext;
     private final OrganizationRepository organizationRepository;
+    private final SupplierRepository supplierRepository;
 
     @Transactional
     public StockTransactionResponse recordTransaction(StockTransactionRequest request) {
@@ -69,6 +72,15 @@ public class StockTransactionService {
             if (phase.getDeal() != null && phase.getDeal().getOrganization() != null
                     && !phase.getDeal().getOrganization().getId().equals(orgId)) {
                 throw new ResourceNotFoundException("InstallmentPhase", request.getInstallmentPhaseId());
+            }
+        }
+
+        Supplier supplier = null;
+        if (request.getType() == TransactionType.INWARD && request.getSupplierId() != null) {
+            supplier = supplierRepository.findById(request.getSupplierId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Supplier", request.getSupplierId()));
+            if (supplier.getOrganization() != null && !supplier.getOrganization().getId().equals(orgId)) {
+                throw new ResourceNotFoundException("Supplier", request.getSupplierId());
             }
         }
 
@@ -104,6 +116,7 @@ public class StockTransactionService {
                 .quantity(request.getQuantity())
                 .unitCostAtTime(unitCost)
                 .totalCost(totalCost)
+                .supplier(supplier)
                 .deal(deal)
                 .installmentPhase(phase)
                 .referenceNumber(request.getReferenceNumber())
@@ -134,6 +147,12 @@ public class StockTransactionService {
     public List<StockTransactionResponse> getByDeal(Long dealId) {
         return transactionMapper.toResponseList(
                 transactionRepository.findByDealIdOrderByTransactionDateDesc(dealId));
+    }
+
+    @Transactional(readOnly = true)
+    public List<StockTransactionResponse> getBySupplier(Long supplierId) {
+        return transactionMapper.toResponseList(
+                transactionRepository.findBySupplierIdOrderByTransactionDateDesc(supplierId));
     }
 
     private String getUsername() {

@@ -51,6 +51,10 @@ public class StockTransaction extends BaseAuditEntity {
     @Column(name = "remarks", columnDefinition = "TEXT")
     private String remarks;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id")
+    private Supplier supplier;
+
     @Column(name = "transaction_date", nullable = false)
     private LocalDateTime transactionDate;
 
