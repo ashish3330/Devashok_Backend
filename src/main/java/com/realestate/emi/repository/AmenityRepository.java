@@ -12,5 +12,7 @@ public interface AmenityRepository extends JpaRepository<Amenity, Long> {
 
     List<Amenity> findByOrganizationIdAndIsActiveTrueOrderByNameAsc(Long orgId);
 
+    List<Amenity> findByOrganizationIdOrderByNameAsc(Long orgId);
+
     Optional<Amenity> findByIdAndOrganizationId(Long id, Long orgId);
 }

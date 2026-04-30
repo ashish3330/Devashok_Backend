@@ -15,5 +15,7 @@ public interface MaintenanceBillRepository extends JpaRepository<MaintenanceBill
 
     Optional<MaintenanceBill> findByIdAndOrganizationId(Long id, Long orgId);
 
+    Optional<MaintenanceBill> findByIdAndOrganizationIdAndFlatId(Long id, Long orgId, Long flatId);
+
     Optional<MaintenanceBill> findByOrganizationIdAndFlatIdAndBillMonth(Long orgId, Long flatId, String billMonth);
 }

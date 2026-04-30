@@ -15,4 +15,8 @@ public interface DailyHelpAssignmentRepository extends JpaRepository<DailyHelpAs
     List<DailyHelpAssignment> findByOrganizationIdAndHelpId(Long orgId, Long helpId);
 
     Optional<DailyHelpAssignment> findByIdAndOrganizationId(Long id, Long orgId);
+
+    Optional<DailyHelpAssignment> findByIdAndOrganizationIdAndFlatId(Long id, Long orgId, Long flatId);
+
+    boolean existsByOrganizationIdAndHelpIdAndFlatIdAndIsActiveTrue(Long orgId, Long helpId, Long flatId);
 }

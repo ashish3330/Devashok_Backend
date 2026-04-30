@@ -17,4 +17,6 @@ public interface AmenityBookingRepository extends JpaRepository<AmenityBooking, 
     List<AmenityBooking> findByOrganizationIdAndResidentIdOrderByBookingDateDesc(Long orgId, Long residentId);
 
     Optional<AmenityBooking> findByIdAndOrganizationId(Long id, Long orgId);
+
+    Optional<AmenityBooking> findByIdAndOrganizationIdAndResidentId(Long id, Long orgId, Long residentId);
 }

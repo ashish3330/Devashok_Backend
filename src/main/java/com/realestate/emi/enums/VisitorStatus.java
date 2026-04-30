@@ -4,5 +4,6 @@ public enum VisitorStatus {
     PRE_APPROVED,
     CHECKED_IN,
     CHECKED_OUT,
-    EXPIRED
+    EXPIRED,
+    CANCELLED
 }
