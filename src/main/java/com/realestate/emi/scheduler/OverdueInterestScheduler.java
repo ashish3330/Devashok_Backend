@@ -40,18 +40,27 @@ public class OverdueInterestScheduler {
         log.info("Daily Phase Check — {}", today);
         log.info("═══════════════════════════════════════════════════════");
 
-        // 1. Mark overdue + apply interest
+        // 1. Mark overdue + apply interest on TOTAL DEAL OUTSTANDING (not just the phase)
         List<InstallmentPhase> overduePhases = installmentPhaseRepository.findOverduePhases(today);
         int interestApplied = 0;
 
         for (InstallmentPhase phase : overduePhases) {
-            BigDecimal outstanding = phase.getDueAmount().subtract(phase.getPaidAmount());
-            if (outstanding.compareTo(BigDecimal.ZERO) <= 0) continue;
+            BigDecimal phaseOutstanding = phase.getDueAmount().subtract(phase.getPaidAmount());
+            if (phaseOutstanding.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            // Calculate TOTAL outstanding across ALL unpaid phases of the same deal
+            List<InstallmentPhase> allDealPhases = installmentPhaseRepository.findByDealOrderByPhaseOrderAsc(phase.getDeal());
+            BigDecimal totalDealOutstanding = allDealPhases.stream()
+                    .filter(p -> p.getStatus() != PhaseStatus.PAID && p.getStatus() != PhaseStatus.PENDING)
+                    .map(p -> p.getDueAmount().subtract(p.getPaidAmount()).max(BigDecimal.ZERO))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            if (totalDealOutstanding.compareTo(BigDecimal.ZERO) <= 0) continue;
 
             long daysOverdue = ChronoUnit.DAYS.between(phase.getDueDeadline(), today);
 
-            // Interest = outstanding × (10/100) × daysOverdue / 365, rounded to nearest rupee
-            BigDecimal interest = outstanding
+            // Interest = TOTAL DEAL outstanding × (10/100) × daysOverdue / 365, rounded to nearest rupee
+            BigDecimal interest = totalDealOutstanding
                     .multiply(INTEREST_RATE_ANNUAL)
                     .multiply(BigDecimal.valueOf(daysOverdue))
                     .divide(BigDecimal.valueOf(36500), 0, RoundingMode.HALF_UP);
@@ -61,11 +70,12 @@ public class OverdueInterestScheduler {
             installmentPhaseRepository.save(phase);
             interestApplied++;
 
-            log.warn("⚠ OVERDUE: Deal #{} | {} | Customer: {} | Outstanding: ₹{} | {} days overdue | Interest: ₹{}",
+            log.warn("⚠ OVERDUE: Deal #{} | {} | Customer: {} | Phase Outstanding: ₹{} | Total Deal Outstanding: ₹{} | {} days overdue | Interest: ₹{}",
                     phase.getDeal().getId(),
                     phase.getPhaseName(),
                     phase.getDeal().getCustomer().getFullName(),
-                    outstanding.setScale(0, RoundingMode.HALF_UP),
+                    phaseOutstanding.setScale(0, RoundingMode.HALF_UP),
+                    totalDealOutstanding.setScale(0, RoundingMode.HALF_UP),
                     daysOverdue,
                     interest);
         }

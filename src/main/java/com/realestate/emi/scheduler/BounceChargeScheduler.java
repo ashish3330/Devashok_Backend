@@ -44,9 +44,21 @@ public class BounceChargeScheduler {
         log.info("Found {} overdue EMI(s) to apply bounce charges.", overdueEmis.size());
 
         for (EmiSchedule schedule : overdueEmis) {
-            BigDecimal outstanding = schedule.getDueAmount().subtract(schedule.getPaidAmount());
+            BigDecimal emiOutstanding = schedule.getDueAmount().subtract(schedule.getPaidAmount());
+
+            // Calculate TOTAL outstanding across ALL unpaid EMIs of the same deal
+            List<EmiSchedule> allDealEmis = emiScheduleRepository.findByDealOrderByDueDateAsc(schedule.getDeal());
+            BigDecimal totalDealOutstanding = allDealEmis.stream()
+                    .filter(e -> e.getStatus() != EmiStatus.PAID)
+                    .map(e -> e.getDueAmount().subtract(e.getPaidAmount()).max(BigDecimal.ZERO))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            if (totalDealOutstanding.compareTo(BigDecimal.ZERO) <= 0) continue;
+
             long daysOverdue = java.time.temporal.ChronoUnit.DAYS.between(schedule.getDueDate(), today);
-            BigDecimal bounceCharge = outstanding
+
+            // Bounce charge = TOTAL DEAL outstanding × 10% × daysOverdue / 365
+            BigDecimal bounceCharge = totalDealOutstanding
                     .multiply(BOUNCE_PENALTY_RATE)
                     .multiply(BigDecimal.valueOf(daysOverdue))
                     .divide(BigDecimal.valueOf(365), 2, RoundingMode.HALF_UP);
@@ -54,9 +66,9 @@ public class BounceChargeScheduler {
             schedule.setBounced(true);
             schedule.setBounceCharges(bounceCharge);
 
-            log.info("Applied bounce charge {} on EMI schedule id={} (dealId={}, dueDate={}, outstanding={}, daysOverdue={})",
+            log.info("Applied bounce charge ₹{} on EMI id={} (dealId={}, dueDate={}, EMI outstanding=₹{}, TOTAL deal outstanding=₹{}, {} days overdue)",
                     bounceCharge, schedule.getId(), schedule.getDeal().getId(),
-                    schedule.getDueDate(), outstanding, daysOverdue);
+                    schedule.getDueDate(), emiOutstanding, totalDealOutstanding, daysOverdue);
         }
 
         emiScheduleRepository.saveAll(overdueEmis);
