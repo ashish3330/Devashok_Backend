@@ -24,4 +24,33 @@ public class CustomPrincipal implements Principal {
     public String getName() {
         return email;
     }
+
+    /**
+     * Resident-context: returns residentId claim if the JWT was issued for a resident,
+     * otherwise null. Safe additive helper for the society layer.
+     */
+    public Long getResidentId() {
+        if (claims == null) return null;
+        Object v = claims.get("residentId");
+        return v instanceof Number n ? n.longValue() : null;
+    }
+
+    /**
+     * Resident-context: returns flatId claim if the JWT was issued for a resident,
+     * otherwise null.
+     */
+    public Long getFlatId() {
+        if (claims == null) return null;
+        Object v = claims.get("flatId");
+        return v instanceof Number n ? n.longValue() : null;
+    }
+
+    /**
+     * Returns true if this principal represents a resident-app session.
+     */
+    public boolean isResident() {
+        if (claims == null) return false;
+        Object t = claims.get("tokenType");
+        return "RESIDENT".equals(t);
+    }
 }

@@ -41,6 +41,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     if (principal.getEmail() != null) {
                         MDC.put("userEmail", principal.getEmail());
                     }
+                    if (principal.getResidentId() != null) {
+                        MDC.put("residentId", String.valueOf(principal.getResidentId()));
+                    }
+                    if (principal.getFlatId() != null) {
+                        MDC.put("flatId", String.valueOf(principal.getFlatId()));
+                    }
                 }
             }
         } catch (Exception e) {

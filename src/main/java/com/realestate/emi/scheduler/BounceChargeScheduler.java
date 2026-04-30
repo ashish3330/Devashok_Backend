@@ -28,7 +28,7 @@ public class BounceChargeScheduler {
      * Finds all overdue EMIs (due date passed, not yet paid, not already bounced)
      * and applies a 10% bounce charge on the outstanding amount.
      */
-    @Scheduled(cron = "${scheduler.bounce.cron:0 0 0 * * *}")
+    @Scheduled(cron = "${scheduler.bounce.cron:e  0 0 * * *}")
     @Transactional
     public void applyBounceCharges() {
         LocalDate today = LocalDate.now();
