@@ -1,5 +1,6 @@
 package com.realestate.emi.dto.request;
 
+import com.realestate.emi.enums.VehicleType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -9,32 +10,26 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
-
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class VisitorPreApproveRequest {
+public class VehicleRequest {
 
-    @NotBlank
-    @Size(max = 200)
-    private String name;
-
-    @Size(max = 20)
-    private String phone;
-
-    @Size(max = 200)
-    private String purpose;
-
+    @NotBlank(message = "Vehicle number is required")
     @Size(max = 30)
-    private String vehicleNo;
+    private String vehicleNumber;
 
-    @NotNull
-    private LocalDateTime expectedAt;
+    @NotNull(message = "Vehicle type is required")
+    private VehicleType vehicleType;
 
-    private Boolean isFrequent;
+    @Size(max = 60)
+    private String make;
 
-    private Integer frequencyDays;
+    @Size(max = 60)
+    private String model;
+
+    @Size(max = 40)
+    private String color;
 }

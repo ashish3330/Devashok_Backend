@@ -34,7 +34,6 @@ public class SmsService {
     }
 
     public void sendOtp(String toMobile, String otp) {
-        System.out.println("==================================================" + otp);
         if (!isConfigured()) {
             // Dev fallback: print OTP to logs so you can test without Twilio
             log.warn("==================================================");

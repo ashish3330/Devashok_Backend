@@ -23,10 +23,13 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -117,6 +120,8 @@ public class VisitorService {
         Resident resident = residentRepository.findByIdAndOrganizationId(residentId, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Resident", residentId));
 
+        boolean frequent = Boolean.TRUE.equals(request.getIsFrequent());
+        Integer freqDays = frequent ? request.getFrequencyDays() : null;
         Visitor visitor = Visitor.builder()
                 .organization(org)
                 .flat(flat)
@@ -127,11 +132,62 @@ public class VisitorService {
                 .vehicleNo(request.getVehicleNo())
                 .expectedAt(request.getExpectedAt())
                 .otp(generateGateCode())
+                .isFrequent(frequent)
+                .frequencyDays(freqDays)
                 .status(VisitorStatus.PRE_APPROVED)
                 .build();
         Visitor saved = visitorRepository.save(visitor);
+        // TODO sign qrPayload with HMAC for production — JWT-style
+        saved.setQrPayload(buildQrPayload(saved));
+        saved = visitorRepository.save(saved);
         log.info("Resident pre-approved visitor id={} name={} flat={}", saved.getId(), saved.getName(), flatId);
         return visitorMapper.toResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<VisitorResponse> listFrequentForResident() {
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        Long residentId = tenantContext.getCurrentResidentId();
+        if (residentId == null) {
+            throw new ServiceException("Resident context missing", "RESIDENT_CONTEXT_MISSING");
+        }
+        return visitorRepository.findAllByResidentIdAndOrganizationIdAndIsFrequentTrue(residentId, orgId).stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .map(visitorMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public VisitorResponse reissueFrequent(Long id) {
+        Long orgId = tenantContext.getCurrentOrganizationId();
+        Long flatId = tenantContext.getCurrentFlatId();
+        Visitor v = visitorRepository.findByIdAndOrganizationIdAndFlatId(id, orgId, flatId)
+                .orElseThrow(() -> new ResourceNotFoundException("Visitor", id));
+        if (!Boolean.TRUE.equals(v.getIsFrequent())) {
+            throw new ServiceException("Visitor is not marked as frequent", "NOT_FREQUENT_VISITOR");
+        }
+        int days = v.getFrequencyDays() != null ? v.getFrequencyDays() : 7;
+        v.setOtp(generateGateCode());
+        v.setExpectedAt(LocalDateTime.now().plusDays(days));
+        v.setStatus(VisitorStatus.PRE_APPROVED);
+        v.setCheckedInAt(null);
+        v.setCheckedOutAt(null);
+        Visitor saved = visitorRepository.save(v);
+        // TODO sign qrPayload with HMAC for production — JWT-style
+        saved.setQrPayload(buildQrPayload(saved));
+        saved = visitorRepository.save(saved);
+        log.info("Reissued frequent visitor id={} flat={} nextExpected={}", saved.getId(), flatId, saved.getExpectedAt());
+        return visitorMapper.toResponse(saved);
+    }
+
+    private String buildQrPayload(Visitor v) {
+        long expEpoch = v.getExpectedAt() == null
+                ? System.currentTimeMillis() + 24L * 60 * 60 * 1000
+                : v.getExpectedAt().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        String json = String.format(
+                "{\"v\":\"1\",\"visitorId\":%d,\"otp\":\"%s\",\"exp\":%d,\"orgId\":%d}",
+                v.getId(), v.getOtp(), expEpoch, v.getOrganization().getId());
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
     }
 
     @Transactional

@@ -78,8 +78,6 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/auth/login",
-                    "/api/auth/admin/send-otp",
-                    "/api/auth/admin/verify-otp",
                     "/api/resident/auth/request-otp",
                     "/api/resident/auth/verify-otp",
                     "/api/resident/auth/refresh",
@@ -87,9 +85,9 @@ public class SecurityConfig {
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
-                    "/api-docs/**",
-                    "/actuator/**"
+                    "/api-docs/**"
                 ).permitAll()
+                .requestMatchers("/actuator/health").permitAll()
                 .anyRequest().authenticated())
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {

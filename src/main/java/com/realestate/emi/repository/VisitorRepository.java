@@ -16,4 +16,6 @@ public interface VisitorRepository extends JpaRepository<Visitor, Long>, JpaSpec
     Optional<Visitor> findByIdAndOrganizationId(Long id, Long orgId);
 
     Optional<Visitor> findByIdAndOrganizationIdAndFlatId(Long id, Long orgId, Long flatId);
+
+    List<Visitor> findAllByResidentIdAndOrganizationIdAndIsFrequentTrue(Long residentId, Long orgId);
 }

@@ -28,6 +28,9 @@ public class VisitorResponse {
     private String vehicleNo;
     private LocalDateTime expectedAt;
     private String otp;
+    private String qrPayload;
+    private Boolean isFrequent;
+    private Integer frequencyDays;
     private String photoUrl;
     private VisitorStatus status;
     private LocalDateTime checkedInAt;

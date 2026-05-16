@@ -52,6 +52,16 @@ public class Visitor extends BaseAuditEntity {
     @Column(name = "otp", length = 10)
     private String otp;
 
+    @Column(name = "qr_payload", length = 500)
+    private String qrPayload;
+
+    @Column(name = "is_frequent", nullable = false)
+    @Builder.Default
+    private Boolean isFrequent = false;
+
+    @Column(name = "frequency_days")
+    private Integer frequencyDays;
+
     @Column(name = "photo_url", length = 500)
     private String photoUrl;
 

@@ -167,13 +167,20 @@ public class DealService {
 
         deal = dealRepository.save(deal);
 
-        // Generate installment phases from templates
+        // Generate installment phases from templates.
+        // Sum-of-rounded-phases must equal totalPayableAfterDeposit exactly — assign the
+        // residual to the last phase so the customer can fully pay (no ±1 rupee drift).
         List<InstallmentPhase> phases = new ArrayList<>();
-        for (InstallmentPlanTemplate template : templates) {
-            // Round off to nearest rupee
-            BigDecimal dueAmount = totalPayableAfterDeposit
-                    .multiply(template.getPercentageOfTotal())
-                    .divide(BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP);
+        BigDecimal runningSum = BigDecimal.ZERO;
+        int lastIdx = templates.size() - 1;
+        for (int i = 0; i <= lastIdx; i++) {
+            InstallmentPlanTemplate template = templates.get(i);
+            BigDecimal dueAmount = (i == lastIdx)
+                    ? totalPayableAfterDeposit.subtract(runningSum)
+                    : totalPayableAfterDeposit
+                            .multiply(template.getPercentageOfTotal())
+                            .divide(BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP);
+            runningSum = runningSum.add(dueAmount);
 
             InstallmentPhase phase = InstallmentPhase.builder()
                     .deal(deal)

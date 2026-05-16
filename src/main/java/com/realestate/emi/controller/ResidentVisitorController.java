@@ -39,4 +39,16 @@ public class ResidentVisitorController {
     public ResponseEntity<ApiResponse<VisitorResponse>> cancel(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(visitorService.residentCancel(id), "Visitor cancelled"));
     }
+
+    @GetMapping("/frequent")
+    public ResponseEntity<ApiResponse<List<VisitorResponse>>> findFrequent() {
+        return ResponseEntity.ok(ApiResponse.success(visitorService.listFrequentForResident(),
+                "Frequent visitors retrieved successfully"));
+    }
+
+    @PostMapping("/frequent/{id}/reissue")
+    public ResponseEntity<ApiResponse<VisitorResponse>> reissueFrequent(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(visitorService.reissueFrequent(id),
+                "Gate code reissued"));
+    }
 }
