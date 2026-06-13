@@ -57,7 +57,7 @@ public class BounceChargeScheduler {
 
             long daysOverdue = java.time.temporal.ChronoUnit.DAYS.between(schedule.getDueDate(), today);
 
-            // Bounce charge = TOTAL DEAL outstanding × 10% × daysOverdue / 365
+            // Bounce create = TOTAL DEAL outstanding × 10% × daysOverdue / 365
             BigDecimal bounceCharge = totalDealOutstanding
                     .multiply(BOUNCE_PENALTY_RATE)
                     .multiply(BigDecimal.valueOf(daysOverdue))
